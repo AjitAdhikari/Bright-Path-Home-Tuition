@@ -1,0 +1,35 @@
+# Minimal Supabase CLI config for local development.
+# Run `supabase start` then `supabase db reset` to apply migrations + seed.
+project_id = "setu"
+
+[api]
+enabled = true
+port = 54321
+schemas = ["public", "storage", "graphql_public"]
+
+[db]
+port = 54322
+major_version = 15
+
+[studio]
+enabled = true
+port = 54323
+
+[auth]
+enabled = true
+site_url = "http://localhost:3000"
+additional_redirect_urls = ["http://localhost:3000/**"]
+jwt_expiry = 3600
+enable_signup = true
+
+[auth.email]
+enable_signup = true
+enable_confirmations = false  # off locally; turn on in staging/prod
+
+# Phone OTP goes through a regional provider via the send-sms Edge Function
+# wired to Supabase's "Send SMS" auth hook. Configure in the dashboard for
+# staging/prod.
+
+[storage]
+enabled = true
+file_size_limit = "5MiB"

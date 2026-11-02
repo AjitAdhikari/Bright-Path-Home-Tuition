@@ -1,0 +1,425 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+/*
+  Dev Nova design system (colours matched to thedevnova.com)
+  ----------------------------------------------------------
+  Warm, editorial, neo-brutalist aesthetic: oxblood-red primary, muted gold
+  and deep indigo supports on a warm cream "paper" background; hard offset
+  shadows (no blur); dark mode is a deep espresso brown. Colours are the real
+  thedevnova.com palette (hex).
+
+  Semantic tokens below (--background, --primary, --card, …) are the real
+  system; a compatibility layer maps the legacy numbered scales (brand-*,
+  ink-*, accent-*, paper) onto the new palette so pre-existing markup adopts
+  the new look without breaking.
+*/
+
+:root {
+  /* Brand palette (thedevnova.com — warm editorial) ------------------ */
+  --brand-oxblood: #862721;
+  --brand-oxblood-deep: #651911;
+  --brand-gold: #937636;
+  --brand-indigo: #2e3c5d;
+
+  /* Core semantic tokens (LIGHT) ------------------------------------- */
+  --background: #ede7db;
+  --foreground: #20160f;
+  --surface: #ebe4d6;
+  --card: #f3eee3;
+  --card-foreground: #20160f;
+  --popover: #f3eee3;
+  --popover-foreground: #20160f;
+
+  --primary: var(--brand-oxblood);
+  --primary-foreground: #f3eee3;
+  --secondary: var(--brand-indigo);
+  --secondary-foreground: #f3eee3;
+  --accent: var(--brand-oxblood);
+  --accent-foreground: #f3eee3;
+
+  --muted: #e1dacc;
+  --muted-foreground: #5b5048;
+
+  --destructive: #af2b25;
+  --destructive-foreground: #f3eee3;
+  --success: #4f6b3a;
+  --warning: var(--brand-gold);
+  --info: var(--brand-indigo);
+
+  --border: #c2b6a2;
+  --input: #ccc3b2;
+  --ring: var(--brand-oxblood);
+
+  --chart-1: var(--brand-oxblood);
+  --chart-2: var(--brand-indigo);
+  --chart-3: var(--brand-gold);
+  --chart-4: #8a533f;
+  --chart-5: #335c69;
+
+  --sidebar: #f3eee3;
+  --sidebar-foreground: #20160f;
+  --sidebar-primary: var(--brand-oxblood);
+  --sidebar-primary-foreground: #f3eee3;
+  --sidebar-accent: #e6ddcc;
+  --sidebar-accent-foreground: #20160f;
+  --sidebar-border: #c2b6a2;
+  --sidebar-ring: var(--brand-oxblood);
+
+  /* Radius scale ----------------------------------------------------- */
+  --radius: 0.75rem;
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+
+  /* Layout / motion -------------------------------------------------- */
+  --container-width: 1280px;
+  --duration-fast: 150ms;
+  --duration-base: 300ms;
+  --duration-slow: 600ms;
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+
+  /* Shadows (hard offset, neo-brutalist) ---------------------------- */
+  --shadow-soft: 2px 2px 0 #c2b6a2;
+  --shadow-card: 3px 3px 0 #c2b6a2;
+  --shadow-glow: 2px 2px 0 var(--brand-oxblood-deep);
+
+  /* Signature gradients --------------------------------------------- */
+  --gradient-brand: linear-gradient(
+    180deg,
+    var(--brand-oxblood),
+    var(--brand-oxblood-deep) 100%
+  );
+  --gradient-mesh: radial-gradient(
+      at 15% 0%,
+      #c4936b12 0px,
+      transparent 55%
+    ),
+    radial-gradient(at 100% 100%, #aa705b14 0px, transparent 50%);
+
+  /* Fonts ------------------------------------------------------------ */
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-heading: var(--font-lexend), var(--font-inter), ui-sans-serif,
+    sans-serif;
+  --font-mono: var(--font-geist-mono);
+
+  /* ---- Legacy compatibility layer (maps old scales onto new brand) ---- */
+  /* teal brand → oxblood ramp */
+  --color-brand-50: #f7ebe9;
+  --color-brand-100: #f0d9d6;
+  --color-brand-200: #e2b4ae;
+  --color-brand-300: #d08a81;
+  --color-brand-400: #b85a4e;
+  --color-brand-500: #9e3a2f;
+  --color-brand-600: var(--brand-oxblood);
+  --color-brand-700: #701e19;
+  --color-brand-800: var(--brand-oxblood-deep);
+  --color-brand-900: #4f160f;
+  --color-brand-950: #2f0d09;
+
+  /* marigold accent → gold ramp */
+  --color-accent-50: #f8f3e6;
+  --color-accent-100: #efe4c6;
+  --color-accent-200: #e0cd94;
+  --color-accent-300: #d1b564;
+  --color-accent-400: #bf9d45;
+  --color-accent-500: #a9863a;
+  --color-accent-600: var(--brand-gold);
+  --color-accent-700: #76602d;
+  --color-accent-800: #5c4b25;
+  --color-accent-900: #463a1f;
+
+  /* cool ink → warm taupe ramp */
+  --color-paper: var(--background);
+  --color-ink-50: #f3eee3;
+  --color-ink-100: #e9e2d4;
+  --color-ink-200: #ccc3b2;
+  --color-ink-300: #c2b6a2;
+  --color-ink-400: #a89d8c;
+  --color-ink-500: #5b5048;
+  --color-ink-600: #4a4139;
+  --color-ink-700: #3a332c;
+  --color-ink-800: #2a241f;
+  --color-ink-900: var(--foreground);
+
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-danger: var(--destructive);
+
+  --font-display: var(--font-heading);
+  --font-devanagari: var(--font-noto-devanagari), "Noto Sans Devanagari",
+    sans-serif;
+}
+
+.dark {
+  --brand-oxblood: #d15d4d;
+  --brand-oxblood-deep: #b1483a;
+  --brand-gold: #c1a057;
+  --brand-indigo: #7791ca;
+
+  --background: #18130e;
+  --foreground: #e4ddcf;
+  --surface: #2b221a;
+  --card: #221b16;
+  --card-foreground: #e4ddcf;
+  --popover: #241e19;
+  --popover-foreground: #e4ddcf;
+
+  --primary: var(--brand-oxblood);
+  --primary-foreground: #0c0806;
+  --secondary: var(--brand-indigo);
+  --secondary-foreground: #f5eee0;
+  --accent: var(--brand-oxblood);
+  --accent-foreground: #0c0806;
+
+  --muted: #2e2722;
+  --muted-foreground: #aba397;
+
+  --destructive: #e15a4e;
+  --destructive-foreground: #0c0806;
+  --success: #8aa06a;
+  --warning: var(--brand-gold);
+  --info: var(--brand-indigo);
+
+  --border: #453b33;
+  --input: #3f362f;
+  --ring: var(--brand-oxblood);
+
+  --chart-1: var(--brand-oxblood);
+  --chart-2: var(--brand-indigo);
+  --chart-3: var(--brand-gold);
+  --chart-4: #b97057;
+  --chart-5: #4c8a9d;
+
+  --sidebar: #1d1713;
+  --sidebar-foreground: #e4ddcf;
+  --sidebar-primary: var(--brand-oxblood);
+  --sidebar-primary-foreground: #0c0806;
+  --sidebar-accent: #2e2722;
+  --sidebar-accent-foreground: #e4ddcf;
+  --sidebar-border: #453b33;
+  --sidebar-ring: var(--brand-oxblood);
+
+  --shadow-soft: 2px 2px 0 #453b33;
+  --shadow-card: 3px 3px 0 #453b33;
+  --shadow-glow: 2px 2px 0 var(--brand-oxblood-deep);
+
+  --gradient-mesh: radial-gradient(
+      at 15% 0%,
+      #85583117 0px,
+      transparent 55%
+    ),
+    radial-gradient(at 100% 100%, #673a2a1a 0px, transparent 50%);
+
+  /* legacy ramps re-tuned for dark bg */
+  --color-brand-50: #3a1712;
+  --color-brand-100: #4f1d16;
+  --color-brand-200: #6b271d;
+  --color-brand-300: #883329;
+  --color-brand-400: #a84436;
+  --color-brand-500: #bd5143;
+  --color-brand-600: var(--brand-oxblood);
+  --color-brand-700: #da7466;
+  --color-brand-800: #e49384;
+  --color-brand-900: #efb8ac;
+  --color-brand-950: #f6d6ce;
+
+  --color-accent-50: #2f2714;
+  --color-accent-100: #40351a;
+  --color-accent-200: #5c4b25;
+  --color-accent-300: #7a6433;
+  --color-accent-400: #9c8246;
+  --color-accent-500: #b0934e;
+  --color-accent-600: var(--brand-gold);
+  --color-accent-700: #d0b46f;
+  --color-accent-800: #e0ca93;
+  --color-accent-900: #eeddba;
+
+  --color-ink-50: #221b16;
+  --color-ink-100: #2e2722;
+  --color-ink-200: #3f362f;
+  --color-ink-300: #453b33;
+  --color-ink-400: #6b6157;
+  --color-ink-500: #aba397;
+  --color-ink-600: #bcb5a9;
+  --color-ink-700: #cdc7bd;
+  --color-ink-800: #ddd8ce;
+  --color-ink-900: var(--foreground);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-surface: var(--surface);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-info: var(--info);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --color-brand-oxblood: var(--brand-oxblood);
+  --color-brand-oxblood-deep: var(--brand-oxblood-deep);
+  --color-brand-gold: var(--brand-gold);
+  --color-brand-indigo: var(--brand-indigo);
+
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+
+  --font-sans: var(--font-sans);
+  --font-heading: var(--font-heading);
+  --font-display: var(--font-display);
+  --font-mono: var(--font-mono);
+  --font-devanagari: var(--font-devanagari);
+
+  --radius-sm: var(--radius-sm);
+  --radius-md: var(--radius-md);
+  --radius-lg: var(--radius-lg);
+  --radius-xl: var(--radius-xl);
+  --radius-2xl: var(--radius-2xl);
+  --radius-3xl: var(--radius-3xl);
+  --radius-4xl: var(--radius-4xl);
+
+  /* legacy radii */
+  --radius-badge: var(--radius-sm);
+  --radius-control: var(--radius-lg);
+  --radius-card: var(--radius-lg);
+  --radius-card-lg: var(--radius-xl);
+
+  --container-width: var(--container-width);
+
+  --animate-duration-fast: var(--duration-fast);
+  --animate-duration-base: var(--duration-base);
+  --animate-duration-slow: var(--duration-slow);
+
+  --shadow-soft: var(--shadow-soft);
+  --shadow-card: var(--shadow-card);
+  --shadow-lift: var(--shadow-card);
+  --shadow-glow: var(--shadow-glow);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  html {
+    @apply scroll-smooth font-sans;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    font-family: var(--font-heading);
+    letter-spacing: -0.02em;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.001ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.001ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
+
+@layer utilities {
+  .glass {
+    background-color: color-mix(in oklch, var(--card) 60%, transparent);
+    backdrop-filter: blur(16px) saturate(160%);
+    -webkit-backdrop-filter: blur(16px) saturate(160%);
+    border: 1px solid color-mix(in oklch, var(--border) 80%, transparent);
+  }
+
+  .gradient-brand {
+    background-image: var(--gradient-brand);
+  }
+
+  .gradient-brand-text {
+    background-image: var(--gradient-brand);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
+  .gradient-mesh-bg {
+    background-image: var(--gradient-mesh);
+  }
+
+  .shadow-soft {
+    box-shadow: var(--shadow-soft);
+  }
+  .shadow-card {
+    box-shadow: var(--shadow-card);
+  }
+  .shadow-glow {
+    box-shadow: var(--shadow-glow);
+  }
+
+  .font-devanagari {
+    font-family: var(--font-devanagari);
+  }
+
+  /* Decorative dotted texture behind hero / CTA sections */
+  .bg-dotted {
+    background-image: radial-gradient(
+      color-mix(in oklch, var(--border) 70%, transparent) 1px,
+      transparent 1px
+    );
+    background-size: 22px 22px;
+  }
+
+  .animate-rise {
+    animation: rise var(--duration-slow) var(--ease-out) both;
+  }
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
