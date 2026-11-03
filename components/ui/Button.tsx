@@ -5,14 +5,16 @@ type Variant = "primary" | "accent" | "outline" | "ghost";
 type Size = "sm" | "md" | "lg";
 
 const base =
-  "inline-flex items-center justify-center gap-2 font-semibold rounded-lg transition-all duration-[var(--duration-fast)] ease-[var(--ease-out)] active:scale-[0.98] focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:opacity-50 disabled:pointer-events-none select-none";
+  "inline-flex items-center justify-center gap-2 font-semibold rounded-lg transition-all duration-[var(--duration-base)] ease-[var(--ease-out)] active:scale-[0.98] focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:opacity-50 disabled:pointer-events-none select-none";
 
 const variants: Record<Variant, string> = {
-  primary: "bg-primary text-primary-foreground shadow-glow hover:brightness-110",
-  accent: "bg-accent text-accent-foreground hover:brightness-105",
+  primary:
+    "bg-primary text-primary-foreground shadow-soft hover:shadow-glow hover:-translate-y-0.5",
+  accent:
+    "bg-accent text-accent-foreground shadow-soft hover:-translate-y-0.5 hover:brightness-[1.03]",
   outline:
-    "border-2 border-primary bg-transparent text-primary hover:bg-primary/10",
-  ghost: "text-foreground hover:bg-muted",
+    "border border-primary/30 bg-transparent text-primary hover:bg-primary/5 hover:border-primary/60",
+  ghost: "text-foreground/80 hover:bg-muted hover:text-foreground",
 };
 
 /* 44–48px touch targets per the design's accessibility rules. */

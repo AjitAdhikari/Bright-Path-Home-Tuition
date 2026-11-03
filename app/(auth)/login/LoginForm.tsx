@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { Eye, EyeOff } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/Button";
 import { Label, Input } from "@/components/ui/Field";
@@ -11,6 +12,7 @@ export function LoginForm() {
   const params = useSearchParams();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showPassword, setShowPassword] = useState(false);
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -57,7 +59,28 @@ export function LoginForm() {
       </div>
       <div>
         <Label>Password</Label>
-        <Input name="password" type="password" required placeholder="••••••••" />
+        <div className="relative">
+          <Input
+            name="password"
+            type={showPassword ? "text" : "password"}
+            required
+            placeholder="••••••••"
+            className="pr-12"
+          />
+          <button
+            type="button"
+            onClick={() => setShowPassword((v) => !v)}
+            aria-label={showPassword ? "Hide password" : "Show password"}
+            aria-pressed={showPassword}
+            className="absolute inset-y-0 right-0 grid w-12 place-items-center text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:text-foreground"
+          >
+            {showPassword ? (
+              <EyeOff className="h-5 w-5" aria-hidden />
+            ) : (
+              <Eye className="h-5 w-5" aria-hidden />
+            )}
+          </button>
+        </div>
       </div>
       <Button type="submit" size="lg" disabled={loading} className="w-full">
         {loading ? "Signing in…" : "Log in"}

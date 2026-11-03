@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Inter, Lexend, Noto_Sans_Devanagari } from "next/font/google";
+import { Inter, Plus_Jakarta_Sans, Noto_Sans_Devanagari } from "next/font/google";
 import { GeistMono } from "geist/font/mono";
 import "./globals.css";
 import { SITE } from "@/lib/constants";
@@ -13,10 +13,11 @@ const inter = Inter({
   display: "swap",
 });
 
-/* Heading / display face — Lexend. */
-const lexend = Lexend({
+/* Heading / display face — Plus Jakarta Sans (modern, art-directed). */
+const jakarta = Plus_Jakarta_Sans({
   subsets: ["latin"],
-  variable: "--font-lexend",
+  weight: ["500", "600", "700", "800"],
+  variable: "--font-jakarta",
   display: "swap",
 });
 
@@ -58,7 +59,7 @@ export default function RootLayout({
     <html
       lang="en"
       suppressHydrationWarning
-      className={`${inter.variable} ${lexend.variable} ${GeistMono.variable} ${devanagari.variable} h-full antialiased`}
+      className={`${inter.variable} ${jakarta.variable} ${GeistMono.variable} ${devanagari.variable} h-full antialiased`}
     >
       <body className="flex min-h-full flex-col">
         <ThemeProvider
