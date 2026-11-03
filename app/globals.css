@@ -115,7 +115,6 @@
     sans-serif;
   --font-mono: var(--font-geist-mono);
 
-  /* ---- Legacy compatibility layer (maps old scales onto new brand) ---- */
   /* brand → navy ramp */
   --color-brand-50: #eef2f9;
   --color-brand-100: #d8e0ef;
