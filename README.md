@@ -49,7 +49,6 @@ npm run dev                  # http://localhost:3000
 | UI primitives | `components/ui/` |
 | Supabase clients + middleware | `lib/supabase/`, `middleware.ts` |
 | Database schema, RLS, storage, seed | `supabase/migrations/` |
-| SMS / OTP Edge Function | `supabase/functions/send-sms/` |
 
 ## Folder structure
 
@@ -59,7 +58,7 @@ app/
     find-tutor/        #   parent requirement form  (Server Action)
     become-tutor/      #   tutor sign-up + docs      (Server Action)
     how-it-works/  fees-and-terms/  about/  privacy/
-  (auth)/              # login, verify-otp
+  (auth)/              # login
   tutor/               # role = tutor  (guarded by middleware + RLS)
   parent/              # role = parent
   admin/               # role = admin  (set by hand in the DB)
@@ -75,7 +74,6 @@ lib/
   constants.ts utils.ts database.types.ts
 supabase/
   migrations/          # 0001 schema · 0002 RLS · 0003 storage + seed
-  functions/send-sms/  # Edge Function for OTP + alerts
 middleware.ts          # session refresh + role gate for /tutor /parent /admin
 ```
 
