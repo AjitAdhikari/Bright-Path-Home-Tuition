@@ -1,5 +1,5 @@
 import { Badge } from "@/components/ui/Card";
-import { Button } from "@/components/ui/Button";
+import { Button, ButtonLink } from "@/components/ui/Button";
 import { TableCard, DataTable, type Column } from "@/components/ui/Table";
 import { createClient } from "@/lib/supabase/server";
 import type { VerificationStatus } from "@/lib/constants";
@@ -112,6 +112,9 @@ export default async function TutorApprovals() {
       className: "text-right whitespace-nowrap",
       cell: (t) => (
         <div className="flex justify-end gap-2">
+          <ButtonLink href={`/admin/tutors/${t.user_id}`} variant="ghost" size="sm">
+            View
+          </ButtonLink>
           {t.verification_status !== "approved" && (
             <form action={setTutorStatus}>
               <input type="hidden" name="user_id" value={t.user_id} />

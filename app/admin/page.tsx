@@ -11,31 +11,41 @@ type RequestRow = {
   child_grade: string;
   status: string;
 };
-type PendingTutor = {
-  user_id: string;
+type PendingApplicant = {
+  id: string;
+  full_name: string;
   education: string | null;
-  profiles: { full_name: string } | null;
 };
+
+const OPEN_APPLICATION_STATUSES = [
+  "pending_review",
+  "under_review",
+  "changes_requested",
+];
 
 export default async function AdminOverview() {
   const supabase = await createClient();
 
-  const [{ data: rows }, { data: pendingRows }, { count: activeCount }] =
-    await Promise.all([
-      supabase.from("requests").select("id, contact_name, child_grade, status"),
-      supabase
-        .from("tutor_profiles")
-        .select("user_id, education, profiles(full_name)")
-        .eq("verification_status", "pending")
-        .limit(6),
-      supabase
-        .from("tuitions")
-        .select("id", { count: "exact", head: true })
-        .eq("status", "active"),
-    ]);
+  const [
+    { data: rows },
+    { data: pendingRows, count: pendingCount },
+    { count: activeCount },
+  ] = await Promise.all([
+    supabase.from("requests").select("id, contact_name, child_grade, status"),
+    supabase
+      .from("tutor_applicants")
+      .select("id, full_name, education", { count: "exact" })
+      .in("status", OPEN_APPLICATION_STATUSES)
+      .order("submitted_at", { ascending: false })
+      .limit(6),
+    supabase
+      .from("tuitions")
+      .select("id", { count: "exact", head: true })
+      .eq("status", "active"),
+  ]);
 
   const requests = (rows ?? []) as RequestRow[];
-  const tutorsToApprove = (pendingRows ?? []) as PendingTutor[];
+  const tutorsToApprove = (pendingRows ?? []) as PendingApplicant[];
   const counts = Object.fromEntries(CASE_STATUS.map((s) => [s, 0])) as Record<
     CaseStatus,
     number
@@ -63,8 +73,8 @@ export default async function AdminOverview() {
           icon={BookOpen}
         />
         <StatTile
-          label="Awaiting approval"
-          value={tutorsToApprove?.length ?? 0}
+          label="Applications to review"
+          value={pendingCount ?? 0}
           icon={UserCheck}
           tone="ink"
         />
@@ -92,35 +102,36 @@ export default async function AdminOverview() {
         </div>
       </section>
 
-      {/* Tutors awaiting approval */}
+      {/* Tutor applications awaiting review */}
       {tutorsToApprove && tutorsToApprove.length > 0 && (
         <Card>
           <div className="flex items-center justify-between">
-            <h2 className="font-bold text-foreground">Tutors awaiting approval</h2>
-            <ButtonLink href="/admin/tutors" variant="ghost" size="sm">
+            <h2 className="font-bold text-foreground">
+              Applications awaiting review
+            </h2>
+            <ButtonLink href="/admin/applicants" variant="ghost" size="sm">
               Review all
             </ButtonLink>
           </div>
           <ul className="mt-4 divide-y divide-border">
-            {tutorsToApprove.map((t) => {
-              const name =
-                (t.profiles as { full_name: string } | null)?.full_name ??
-                "New tutor";
-              return (
-                <li
-                  key={t.user_id}
-                  className="flex items-center justify-between py-3"
+            {tutorsToApprove.map((t) => (
+              <li key={t.id}>
+                <a
+                  href={`/admin/applicants/${t.id}`}
+                  className="flex items-center justify-between py-3 transition-colors hover:text-primary"
                 >
                   <div>
-                    <p className="font-semibold text-foreground">{name}</p>
+                    <p className="font-semibold text-foreground">
+                      {t.full_name}
+                    </p>
                     <p className="text-sm text-muted-foreground">
                       {t.education ?? "Awaiting document review"}
                     </p>
                   </div>
                   <Badge tone="warning">Pending</Badge>
-                </li>
-              );
-            })}
+                </a>
+              </li>
+            ))}
           </ul>
         </Card>
       )}

@@ -42,10 +42,27 @@ delete from auth.users where email in (
 -- ╔═ 1. Extensions ═══════════════════════════════════════════════════╗
 create extension if not exists pgcrypto;
 
+-- Human-friendly application numbers: BP-<year>-00001. Defined early because
+-- tutor_applications.application_number uses it as a column default.
+create sequence if not exists application_number_seq start 1;
+create or replace function gen_application_number() returns text
+language sql volatile as $$
+  select 'BP-' || to_char(now(), 'YYYY') || '-' ||
+         lpad(nextval('application_number_seq')::text, 5, '0');
+$$;
+
 -- ╔═ 2. Enums ════════════════════════════════════════════════════════╗
 create type user_role           as enum ('parent', 'tutor', 'admin');
 create type verification_status as enum ('pending', 'needs_info', 'approved', 'rejected');
-create type doc_type            as enum ('citizenship', 'certificate', 'police_report', 'experience_letter');
+-- Tutor-application lifecycle (distinct from tutor_profiles.verification_status,
+-- which the matching engine reads). The application trigger keeps the two in sync.
+create type application_status as enum (
+  'pending_review', 'under_review', 'changes_requested', 'approved', 'rejected'
+);
+create type doc_type            as enum (
+  'citizenship', 'certificate', 'police_report', 'experience_letter',
+  'cv', 'academic_certificate', 'training_certificate', 'photo', 'other'
+);
 create type review_status       as enum ('pending', 'approved', 'rejected');
 create type time_slot           as enum ('morning', 'day', 'evening');
 create type tuition_mode        as enum ('home', 'online');
@@ -88,7 +105,26 @@ create table tutor_profiles (
   verified_by         uuid references profiles(id),
   verified_at         timestamptz,
   rating_avg          numeric(2,1) default 0,
-  created_at          timestamptz not null default now()
+  created_at          timestamptz not null default now(),
+  -- Extended application fields (all nullable; filled by the multi-step form).
+  date_of_birth           date,
+  whatsapp                text,
+  permanent_address       text,
+  current_address         text,
+  city                    text,
+  district                text,
+  preferred_location      text,
+  max_travel_km           int,
+  available_days          text,   -- comma-separated
+  available_slots         text,   -- comma-separated
+  preferred_student_level text,
+  expected_fee            numeric,
+  languages               text,
+  why_join                text,
+  strengths               text,
+  teaching_approach       text,
+  additional_info         text,
+  intro_video_url         text
 );
 
 create table tutor_documents (
@@ -96,8 +132,162 @@ create table tutor_documents (
   tutor_id      uuid not null references profiles(id) on delete cascade,
   doc_type      doc_type not null,
   storage_path  text not null,
+  file_name     text,            -- original filename, for admin display
+  mime_type     text,            -- validated MIME, for preview/download
+  size_bytes    bigint,
   review_status review_status not null default 'pending',
   created_at    timestamptz not null default now()
+);
+
+-- Multiple educational qualifications per tutor (Step 2 of the application).
+create table tutor_qualifications (
+  id              uuid primary key default gen_random_uuid(),
+  tutor_id        uuid not null references profiles(id) on delete cascade,
+  level           text,          -- degree / level
+  faculty         text,          -- faculty / stream
+  major           text,
+  institution     text,          -- college / university
+  graduation_year int,
+  gpa             text,          -- GPA or percentage
+  additional      text,
+  sort_order      int not null default 0,
+  created_at      timestamptz not null default now()
+);
+
+-- Multiple teaching-experience records per tutor (Step 3 of the application).
+create table tutor_experiences (
+  id           uuid primary key default gen_random_uuid(),
+  tutor_id     uuid not null references profiles(id) on delete cascade,
+  institution  text,
+  role         text,
+  classes      text,
+  subjects     text,
+  description  text,
+  achievements text,
+  methodology  text,
+  sort_order   int not null default 0,
+  created_at   timestamptz not null default now()
+);
+
+-- One application per tutor; its status drives dashboard access + admin review.
+create table tutor_applications (
+  id                 uuid primary key default gen_random_uuid(),
+  tutor_id           uuid not null unique references profiles(id) on delete cascade,
+  application_number text not null unique default gen_application_number(),
+  status             application_status not null default 'pending_review',
+  submitted_at       timestamptz not null default now(),
+  reviewed_by        uuid references profiles(id),
+  reviewed_at        timestamptz,
+  rejection_reason   text,
+  admin_feedback     text,        -- shown to tutor on "changes requested"
+  created_at         timestamptz not null default now(),
+  updated_at         timestamptz not null default now()
+);
+
+-- Append-only status trail (who changed it, when, and why).
+create table application_status_history (
+  id             uuid primary key default gen_random_uuid(),
+  application_id uuid not null references tutor_applications(id) on delete cascade,
+  status         application_status not null,
+  note           text,
+  changed_by     uuid references profiles(id),
+  created_at     timestamptz not null default now()
+);
+
+-- Private admin-only notes on an application (never visible to tutors).
+create table admin_application_notes (
+  id             uuid primary key default gen_random_uuid(),
+  application_id uuid not null references tutor_applications(id) on delete cascade,
+  author_id      uuid references profiles(id),
+  body           text not null,
+  created_at     timestamptz not null default now()
+);
+
+-- Versioned contract/agreement content, editable by admins.
+create table tutor_agreements (
+  id             uuid primary key default gen_random_uuid(),
+  version        int  not null unique,
+  terms_version  text not null,
+  privacy_version text not null,
+  title          text not null,
+  body           text not null,
+  is_active      boolean not null default false,
+  created_at     timestamptz not null default now()
+);
+
+-- Immutable record of what the tutor accepted, at submission time.
+create table agreement_acceptances (
+  id                       uuid primary key default gen_random_uuid(),
+  application_id           uuid not null references tutor_applications(id) on delete cascade,
+  tutor_id                 uuid references profiles(id) on delete cascade,
+  full_name                text,
+  agreement_version        int,
+  terms_version            text,
+  privacy_version          text,
+  accepted_rules           boolean not null default false,
+  accepted_accuracy        boolean not null default false,
+  accepted_privacy         boolean not null default false,
+  accepted_not_guaranteed  boolean not null default false,
+  accepted_at              timestamptz not null default now(),
+  submission_at            timestamptz
+);
+
+-- Public tutor applications submitted BEFORE any login account exists. A
+-- visitor fills the become-tutor form (profile + documents) with no sign-in;
+-- the Supabase auth user is provisioned only when an admin approves
+-- (provisioned_user_id links to the created profile). This is why tutor_id is
+-- absent here — there is no auth user yet.
+create table tutor_applicants (
+  id                  uuid primary key default gen_random_uuid(),
+  application_number  text not null unique default gen_application_number(),
+  status              application_status not null default 'pending_review',
+  full_name           text not null,
+  email               text not null,
+  phone               text,
+  education           text,
+  experience_years    int,
+  gender              text,
+  bio                 text,
+  areas               text,   -- areas the tutor can travel to (free text)
+  levels              text,   -- comma-separated levels they teach
+  -- review + provisioning
+  reviewed_by         uuid references profiles(id),
+  reviewed_at         timestamptz,
+  rejection_reason    text,
+  admin_feedback      text,
+  provisioned_user_id uuid references profiles(id),
+  submitted_at        timestamptz not null default now(),
+  created_at          timestamptz not null default now(),
+  updated_at          timestamptz not null default now()
+);
+
+-- Documents attached to a pre-account application. Stored in the private
+-- tutor-documents bucket under applicants/<applicant_id>/… via the service
+-- role (the visitor has no session), and moved to the tutor's own folder on
+-- approval.
+create table applicant_documents (
+  id           uuid primary key default gen_random_uuid(),
+  applicant_id uuid not null references tutor_applicants(id) on delete cascade,
+  doc_type     doc_type not null,
+  storage_path text not null,
+  file_name    text,
+  mime_type    text,
+  size_bytes   bigint,
+  created_at   timestamptz not null default now()
+);
+
+-- Outbound email log (Resend). Lets admins audit what was sent.
+create table email_notifications (
+  id             uuid primary key default gen_random_uuid(),
+  application_id uuid references tutor_applications(id) on delete set null,
+  to_email       text not null,
+  template       text not null,
+  subject        text,
+  status         text not null default 'queued',  -- queued | sent | failed | skipped
+  provider_id    text,
+  error          text,
+  created_at     timestamptz not null default now(),
+  sent_at        timestamptz
 );
 
 -- Lookups
@@ -226,6 +416,10 @@ create index idx_payments_tuition       on payments(tuition_id);
 create index idx_tutor_profiles_status  on tutor_profiles(verification_status);
 create index idx_tutor_subjects_tutor   on tutor_subjects(tutor_id);
 create index idx_tutor_areas_area       on tutor_areas(area_id);
+create index idx_applications_status    on tutor_applications(status);
+create index idx_applications_tutor     on tutor_applications(tutor_id);
+create index idx_ash_application        on application_status_history(application_id);
+create index idx_docs_tutor             on tutor_documents(tutor_id);
 
 -- ╔═ 4. Functions + triggers ═════════════════════════════════════════╗
 
@@ -270,11 +464,83 @@ begin
     new.email
   )
   on conflict (id) do nothing;
+
+  -- A tutor's application is created up front (status 'pending_review') so
+  -- dashboard access stays gated until an admin approves it.
+  if coalesce((new.raw_user_meta_data->>'role'), 'parent') = 'tutor' then
+    insert into public.tutor_applications (tutor_id)
+    values (new.id)
+    on conflict (tutor_id) do nothing;
+  end if;
   return new;
 end; $$;
 create trigger trg_new_user
 after insert on auth.users
 for each row execute function handle_new_user();
+
+-- BEFORE UPDATE: a tutor may not move their own application into an admin-only
+-- state. They may only resubmit (changes_requested -> pending_review).
+-- Also stamps updated_at. Runs before the AFTER trigger below, so history and
+-- verification sync always see the *final* (possibly reverted) status.
+create or replace function guard_application_status() returns trigger
+language plpgsql security definer set search_path = public as $$
+begin
+  if not is_admin()
+     and new.status is distinct from old.status
+     and not (old.status = 'changes_requested' and new.status = 'pending_review') then
+    new.status := old.status;
+    new.reviewed_by := old.reviewed_by;
+    new.reviewed_at := old.reviewed_at;
+    new.rejection_reason := old.rejection_reason;
+    new.admin_feedback := old.admin_feedback;
+  end if;
+  new.updated_at := now();
+  return new;
+end; $$;
+create trigger trg_guard_application before update on tutor_applications
+for each row execute function guard_application_status();
+
+-- AFTER INSERT/UPDATE: append the status trail and mirror the matching engine's
+-- tutor_profiles.verification_status. SECURITY DEFINER so it can update
+-- tutor_profiles past the guard_verification trigger.
+create or replace function on_application_change() returns trigger
+language plpgsql security definer set search_path = public as $$
+begin
+  if tg_op = 'INSERT' then
+    insert into application_status_history (application_id, status, changed_by)
+    values (new.id, new.status, auth.uid());
+    return new;
+  end if;
+
+  if new.status is distinct from old.status then
+    insert into application_status_history (application_id, status, note, changed_by)
+    values (new.id, new.status,
+            coalesce(new.admin_feedback, new.rejection_reason), auth.uid());
+
+    -- Mirror onto tutor_profiles so match_tutors / public_tutors stay correct.
+    if new.status = 'approved' then
+      update tutor_profiles
+         set verification_status = 'approved',
+             verified_by = new.reviewed_by,
+             verified_at = coalesce(new.reviewed_at, now())
+       where user_id = new.tutor_id;
+    elsif new.status = 'rejected' then
+      update tutor_profiles set verification_status = 'rejected'
+       where user_id = new.tutor_id;
+    elsif new.status = 'changes_requested' then
+      update tutor_profiles set verification_status = 'needs_info'
+       where user_id = new.tutor_id;
+    else
+      update tutor_profiles set verification_status = 'pending'
+       where user_id = new.tutor_id;
+    end if;
+  end if;
+  return new;
+end; $$;
+create trigger trg_application_insert after insert on tutor_applications
+for each row execute function on_application_change();
+create trigger trg_application_update after update on tutor_applications
+for each row execute function on_application_change();
 
 -- A tutor may not change their own verification fields — only an admin can.
 create or replace function guard_verification() returns trigger
@@ -309,6 +575,16 @@ alter table attendance          enable row level security;
 alter table reviews             enable row level security;
 alter table case_notes          enable row level security;
 alter table notifications       enable row level security;
+alter table tutor_qualifications    enable row level security;
+alter table tutor_experiences       enable row level security;
+alter table tutor_applications      enable row level security;
+alter table application_status_history enable row level security;
+alter table admin_application_notes enable row level security;
+alter table tutor_agreements        enable row level security;
+alter table agreement_acceptances   enable row level security;
+alter table email_notifications     enable row level security;
+alter table tutor_applicants        enable row level security;
+alter table applicant_documents     enable row level security;
 
 -- Lookups: readable by anyone, writable by admin.
 create policy lookups_read_subjects  on subjects for select using (true);
@@ -340,6 +616,69 @@ create policy tutor_profiles_admin on tutor_profiles
 create policy tutor_docs_own on tutor_documents
   for all using (tutor_id = auth.uid() or is_admin())
   with check (tutor_id = auth.uid() or is_admin());
+
+-- Tutor qualifications / experiences: owner read-write, admin read-write.
+create policy tq_rw on tutor_qualifications for all
+  using (tutor_id = auth.uid() or is_admin())
+  with check (tutor_id = auth.uid() or is_admin());
+create policy te_rw on tutor_experiences for all
+  using (tutor_id = auth.uid() or is_admin())
+  with check (tutor_id = auth.uid() or is_admin());
+
+-- Applications: owner reads/updates own; admin does everything. The
+-- guard_application_status trigger stops a tutor self-approving even though the
+-- update policy lets them write their own row.
+create policy applications_select_own on tutor_applications
+  for select using (tutor_id = auth.uid() or is_admin());
+create policy applications_insert_own on tutor_applications
+  for insert with check (tutor_id = auth.uid() or is_admin());
+create policy applications_update_own on tutor_applications
+  for update using (tutor_id = auth.uid() or is_admin())
+  with check (tutor_id = auth.uid() or is_admin());
+create policy applications_admin on tutor_applications
+  for all using (is_admin()) with check (is_admin());
+
+-- Status history: readable by the owning tutor or an admin; writes happen only
+-- through the SECURITY DEFINER trigger, so no direct insert policy is granted.
+create policy ash_select on application_status_history
+  for select using (
+    is_admin() or exists (
+      select 1 from tutor_applications a
+       where a.id = application_id and a.tutor_id = auth.uid()
+    )
+  );
+create policy ash_admin on application_status_history
+  for all using (is_admin()) with check (is_admin());
+
+-- Admin internal notes: admin only, never visible to tutors.
+create policy notes_admin on admin_application_notes
+  for all using (is_admin()) with check (is_admin());
+
+-- Agreement content: anyone may read the active version(s); only admins edit.
+create policy agreements_read on tutor_agreements for select using (true);
+create policy agreements_admin on tutor_agreements
+  for all using (is_admin()) with check (is_admin());
+
+-- Acceptance records: a tutor inserts + reads their own; nobody but admins may
+-- change them afterwards (immutable from the tutor's side — no update policy).
+create policy acc_insert_own on agreement_acceptances
+  for insert with check (tutor_id = auth.uid() or is_admin());
+create policy acc_select_own on agreement_acceptances
+  for select using (tutor_id = auth.uid() or is_admin());
+create policy acc_admin on agreement_acceptances
+  for all using (is_admin()) with check (is_admin());
+
+-- Email log: admin only (the server writes with the service-role key).
+create policy email_admin on email_notifications
+  for all using (is_admin()) with check (is_admin());
+
+-- Applicants + their documents: admin-only for all authenticated/anon access.
+-- Public submission and approval-time provisioning both run with the
+-- service-role key, which bypasses RLS, so no public policy is exposed.
+create policy applicants_admin on tutor_applicants
+  for all using (is_admin()) with check (is_admin());
+create policy applicant_docs_admin on applicant_documents
+  for all using (is_admin()) with check (is_admin());
 
 -- tutor_subjects / areas / availability: owner + admin write, public read
 create policy ts_rw on tutor_subjects for all
@@ -548,6 +887,29 @@ insert into areas (name, municipality, ward) values
   ('Thimi', 'Madhyapur Thimi', '5'),
   ('Lakeside', 'Pokhara', '6');
 
+-- Active tutor agreement (v1). Wording is a starting point — the business owner
+-- must review and approve it before it is treated as legally binding. Admins can
+-- publish a new version at any time; acceptance records pin the version accepted.
+insert into tutor_agreements (version, terms_version, privacy_version, title, body, is_active)
+values (
+  1, 'v1', 'v1', 'Bright Path Home Tuition — Tutor Agreement',
+$agreement$Welcome to Bright Path Home Tuition. By submitting your application you agree to the following responsibilities as a tutor on our platform:
+
+1. Accuracy of Information — You will provide accurate and genuine personal, educational, and professional information.
+2. Document Verification — All certificates, CVs, experience letters, and identity documents you upload are genuine.
+3. Professional Conduct — You will behave respectfully and professionally with students and parents.
+4. Punctuality — You will follow agreed schedules and communicate any unavoidable delays or absences in advance.
+5. Student Safety — You will maintain appropriate professional boundaries and prioritise student safety at all times.
+6. Privacy and Confidentiality — You will not misuse or disclose students' personal information, contact details, academic records, or other confidential information.
+7. Communication — You will communicate professionally with students, parents, and Bright Path administration.
+8. Fee and Payment Rules — You will follow the applicable fee, commission, and payment policies communicated by the platform.
+9. Policy Compliance — You will follow the platform's policies and reasonable administrative instructions.
+10. Application Integrity — You will not submit duplicate, misleading, or fraudulent applications.
+11. Application Approval — Submitting an application does not guarantee approval or immediate access to the Teacher Dashboard.
+12. Suspension or Termination — Violations of applicable policies may result in suspension or termination, subject to the platform's stated procedures.$agreement$,
+  true
+);
+
 -- Helper: create a login the exact way Supabase Auth (GoTrue) expects.
 -- The empty-string token columns matter — NULL there breaks login with
 -- "Database error querying schema". Dropped again at the end of seeding.
@@ -662,6 +1024,19 @@ begin
     (sita, 1, 'day'), (sita, 5, 'day'),
     (bikash, 0, 'morning'), (bikash, 3, 'evening'),
     (pooja, 2, 'evening'), (pooja, 6, 'day');
+
+  -- trg_new_user already created a 'pending_review' application for each seeded
+  -- tutor. Replace those with 'approved' rows so the demo tutors keep dashboard
+  -- access (UPDATE would be reverted by guard_application_status since the seed
+  -- runs without an admin auth.uid(); INSERT is not guarded).
+  delete from tutor_applications
+   where tutor_id in (anita, rajesh, sita, bikash, pooja);
+  insert into tutor_applications (tutor_id, status, submitted_at, reviewed_at)
+  values (anita,  'approved', now(), now()),
+         (rajesh, 'approved', now(), now()),
+         (sita,   'approved', now(), now()),
+         (bikash, 'approved', now(), now()),
+         (pooja,  'approved', now(), now());
 end $$;
 
 drop function seed_user(text, text, text, text, text);

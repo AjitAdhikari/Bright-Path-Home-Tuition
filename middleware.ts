@@ -60,6 +60,27 @@ export async function middleware(request: NextRequest) {
       url.pathname = `/${role}`;
       return NextResponse.redirect(url);
     }
+
+    // Approval gate: a tutor only reaches the real dashboard once an admin has
+    // approved their application. Until then they may see their application
+    // status and finish uploading documents, nothing else. This is enforced
+    // server-side (not just hidden links) and RLS re-checks every row anyway.
+    if (area === "tutor" && role === "tutor") {
+      const allowed = ["/tutor/application-status", "/tutor/documents"];
+      const isAllowed = allowed.some((p) => pathname.startsWith(p));
+      if (!isAllowed) {
+        const { data: profile } = await supabase
+          .from("tutor_profiles")
+          .select("verification_status")
+          .eq("user_id", user.id)
+          .maybeSingle();
+        if ((profile as { verification_status?: string } | null)?.verification_status !== "approved") {
+          const url = request.nextUrl.clone();
+          url.pathname = "/tutor/application-status";
+          return NextResponse.redirect(url);
+        }
+      }
+    }
   }
 
   return response;
