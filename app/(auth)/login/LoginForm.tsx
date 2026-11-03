@@ -20,23 +20,34 @@ export function LoginForm() {
     const form = new FormData(e.currentTarget);
     const supabase = createClient();
     const { error } = await supabase.auth.signInWithPassword({
-      email: String(form.get("email")),
+      email: String(form.get("email")).trim(),
       password: String(form.get("password")),
     });
 
-    setLoading(false);
     if (error) {
-      setError(error.message);
+      setLoading(false);
+      // Don't echo raw auth errors — they can hint at which emails exist.
+      setError(
+        error.message.toLowerCase().includes("invalid")
+          ? "That email and password don't match. Please try again."
+          : "We couldn't sign you in just now. Please try again in a moment."
+      );
       return;
     }
-    router.push(params.get("next") ?? "/tutor");
+
+    // Send each person to their own area; middleware also enforces this.
+    const { data } = await supabase.auth.getUser();
+    const role = data.user?.user_metadata?.role as string | undefined;
+    const home =
+      role === "admin" ? "/admin" : role === "parent" ? "/parent" : "/tutor";
+    router.push(params.get("next") ?? home);
     router.refresh();
   }
 
   return (
     <form onSubmit={onSubmit} className="space-y-5">
       {error && (
-        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        <div className="rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
           {error}
         </div>
       )}
@@ -49,10 +60,10 @@ export function LoginForm() {
         <Input name="password" type="password" required placeholder="••••••••" />
       </div>
       <Button type="submit" size="lg" disabled={loading} className="w-full">
-        {loading ? "Logging in…" : "Log in"}
+        {loading ? "Signing in…" : "Log in"}
       </Button>
-      <p className="text-center text-xs text-ink-400">
-        Tutors can also log in with a phone OTP — ask us on WhatsApp if you need it.
+      <p className="text-center text-xs text-muted-foreground">
+        Trouble signing in? Message us on WhatsApp and we&apos;ll help.
       </p>
     </form>
   );

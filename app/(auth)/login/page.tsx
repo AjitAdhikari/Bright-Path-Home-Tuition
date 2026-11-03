@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import Link from "next/link";
 import { LoginForm } from "./LoginForm";
 
@@ -12,7 +13,11 @@ export default function LoginPage() {
         Log in to your tutor or admin dashboard.
       </p>
       <div className="mt-8">
-        <LoginForm />
+        <Suspense
+          fallback={<div className="h-64 animate-pulse rounded-xl bg-muted" />}
+        >
+          <LoginForm />
+        </Suspense>
       </div>
       <p className="mt-6 text-center text-sm text-ink-500">
         New tutor?{" "}

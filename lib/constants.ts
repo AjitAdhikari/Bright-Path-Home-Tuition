@@ -73,3 +73,20 @@ export const MODES = ["Home", "Online"] as const;
 export const GENDER_PREF = ["Any", "Male", "Female"] as const;
 
 export const COMMISSION_RATE = 0.5; // 50% of the first month
+
+/**
+ * Manual QR payment details. Parents scan the QR (Fonepay/eSewa/bank),
+ * pay the first month, then send us the screenshot on WhatsApp — there is
+ * no online gateway. Set the real values in `.env` before launch; the
+ * fallbacks only keep the UI sensible in development.
+ */
+export const PAYMENT = {
+  /** Image dropped in `public/` — a Fonepay/eSewa QR exported from the app. */
+  qrImage: process.env.NEXT_PUBLIC_PAYMENT_QR ?? "/payment-qr.png",
+  payeeName: process.env.NEXT_PUBLIC_PAYEE_NAME ?? SITE.fullName,
+  /** eSewa ID / Fonepay number shown as a fallback if the QR won't scan. */
+  esewaId: process.env.NEXT_PUBLIC_ESEWA_ID ?? SITE.whatsapp,
+  bankNote:
+    process.env.NEXT_PUBLIC_BANK_NOTE ??
+    "Or ask us for bank transfer details on WhatsApp.",
+} as const;

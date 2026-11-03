@@ -26,6 +26,7 @@ export async function POST(req: Request) {
   const site = process.env.NEXT_PUBLIC_SITE_URL!;
 
   const supabase = await createClient();
+  // `as never` until `npm run db:types` regenerates the schema types.
   const { error } = await supabase.from("payments").insert({
     tuition_id: tuitionId,
     direction: "in",
@@ -33,7 +34,7 @@ export async function POST(req: Request) {
     method,
     gateway_ref: reference,
     status: "pending",
-  });
+  } as never);
   if (error) {
     return NextResponse.json({ error: "Could not start payment" }, { status: 500 });
   }

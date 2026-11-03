@@ -63,13 +63,15 @@ export async function registerTutor(
     const uid = signUp.user?.id;
     if (uid) {
       // profiles + tutor_profiles rows; verification_status starts "pending".
+      // Payloads are `as never` only until `npm run db:types` regenerates
+      // lib/database.types.ts from the live schema.
       await supabase.from("profiles").upsert({
         id: uid,
         role: "tutor",
         full_name: d.full_name,
         phone: d.phone,
         email: d.email,
-      });
+      } as never);
       await supabase.from("tutor_profiles").upsert({
         user_id: uid,
         bio: d.bio,
@@ -77,7 +79,7 @@ export async function registerTutor(
         experience_years: d.experience_years,
         gender: d.gender.toLowerCase(),
         verification_status: "pending",
-      });
+      } as never);
     }
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Something went wrong.";

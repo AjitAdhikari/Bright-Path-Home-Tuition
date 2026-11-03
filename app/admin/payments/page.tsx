@@ -1,55 +1,152 @@
-import { Card, Badge } from "@/components/ui/Card";
-import { Button } from "@/components/ui/Button";
+import { ArrowDownLeft, ArrowUpRight } from "lucide-react";
+import { Badge } from "@/components/ui/Card";
+import { TableCard, DataTable, type Column } from "@/components/ui/Table";
+import { createClient } from "@/lib/supabase/server";
 import { npr, prettyDate } from "@/lib/utils";
 
-/** Money in (commission) and out (tutor payouts). Pull from `payments`. */
-const rows = [
-  ["IN", "Ramesh K. — first month", 9000, "esewa", "paid", "2026-10-30"],
-  ["OUT", "Payout · Anita Sharma", 4500, "bank", "pending", "2026-10-31"],
-  ["IN", "Anju M. — first month", 15000, "khalti", "paid", "2026-10-28"],
-  ["IN", "Bimal R. — first month", 6000, "cash", "paid", "2026-10-27"],
-] as const;
+type PaymentRow = {
+  id: string;
+  direction: "in" | "payout";
+  amount: number;
+  method: string;
+  gateway_ref: string | null;
+  status: "pending" | "paid" | "failed" | "refunded";
+  paid_at: string | null;
+  created_at: string;
+};
 
-export default function Payments() {
+const STATUS_TONE: Record<
+  PaymentRow["status"],
+  "success" | "warning" | "danger" | "neutral"
+> = {
+  paid: "success",
+  pending: "warning",
+  failed: "danger",
+  refunded: "neutral",
+};
+
+export default async function Payments() {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("payments")
+    .select(
+      "id, direction, amount, method, gateway_ref, status, paid_at, created_at"
+    )
+    .order("created_at", { ascending: false });
+
+  const rows = (data ?? []) as PaymentRow[];
+  const paid = rows.filter((r) => r.status === "paid");
+  const totalIn = paid
+    .filter((r) => r.direction === "in")
+    .reduce((s, r) => s + Number(r.amount), 0);
+  const totalOut = paid
+    .filter((r) => r.direction === "payout")
+    .reduce((s, r) => s + Number(r.amount), 0);
+
+  const columns: Column<PaymentRow>[] = [
+    {
+      key: "dir",
+      header: "",
+      className: "w-10",
+      cell: (r) =>
+        r.direction === "in" ? (
+          <span className="grid h-8 w-8 place-items-center rounded-full bg-success/15 text-success">
+            <ArrowDownLeft className="h-4 w-4" aria-hidden />
+          </span>
+        ) : (
+          <span className="grid h-8 w-8 place-items-center rounded-full bg-warning/20 text-warning">
+            <ArrowUpRight className="h-4 w-4" aria-hidden />
+          </span>
+        ),
+    },
+    {
+      key: "ref",
+      header: "Reference",
+      cell: (r) => (
+        <div>
+          <p className="font-medium text-foreground">
+            {r.direction === "in" ? "Payment in" : "Tutor payout"}
+          </p>
+          <p className="font-mono text-xs text-muted-foreground">
+            {r.gateway_ref ? r.gateway_ref.slice(0, 16) : `#${r.id.slice(0, 8)}`}
+          </p>
+        </div>
+      ),
+    },
+    {
+      key: "amount",
+      header: "Amount",
+      cell: (r) => (
+        <span className="font-semibold text-foreground">{npr(r.amount)}</span>
+      ),
+    },
+    {
+      key: "method",
+      header: "Method",
+      cell: (r) => (
+        <span className="capitalize text-muted-foreground">{r.method}</span>
+      ),
+    },
+    {
+      key: "status",
+      header: "Status",
+      cell: (r) => (
+        <Badge tone={STATUS_TONE[r.status]}>
+          <span className="capitalize">{r.status}</span>
+        </Badge>
+      ),
+    },
+    {
+      key: "date",
+      header: "Date",
+      className: "whitespace-nowrap",
+      cell: (r) => (
+        <span className="text-muted-foreground">
+          {prettyDate(r.paid_at ?? r.created_at)}
+        </span>
+      ),
+    },
+  ];
+
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h2 className="text-sm font-bold uppercase tracking-wide text-ink-400">
-          Ledger
-        </h2>
-        <Button variant="outline" size="sm">Record manual payment</Button>
+      <div className="grid gap-4 sm:grid-cols-3">
+        <Stat label="Collected" value={npr(totalIn)} tone="success" />
+        <Stat label="Paid out" value={npr(totalOut)} tone="warning" />
+        <Stat label="Net held" value={npr(totalIn - totalOut)} tone="brand" />
       </div>
 
-      <Card className="overflow-hidden p-0">
-        <table className="w-full text-left text-sm">
-          <thead className="border-b border-ink-100 bg-ink-50 text-xs uppercase tracking-wide text-ink-400">
-            <tr>
-              <th className="px-5 py-3">Dir</th>
-              <th className="px-5 py-3">Description</th>
-              <th className="px-5 py-3">Amount</th>
-              <th className="px-5 py-3">Method</th>
-              <th className="px-5 py-3">Status</th>
-              <th className="px-5 py-3">Date</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-ink-100">
-            {rows.map(([dir, desc, amt, method, status, date], i) => (
-              <tr key={i} className="hover:bg-ink-50/60">
-                <td className="px-5 py-3.5">
-                  <Badge tone={dir === "IN" ? "success" : "accent"}>{dir}</Badge>
-                </td>
-                <td className="px-5 py-3.5 text-ink-900">{desc}</td>
-                <td className="px-5 py-3.5 font-semibold text-ink-900">{npr(amt)}</td>
-                <td className="px-5 py-3.5 capitalize text-ink-600">{method}</td>
-                <td className="px-5 py-3.5">
-                  <Badge tone={status === "paid" ? "success" : "warning"}>{status}</Badge>
-                </td>
-                <td className="px-5 py-3.5 text-ink-500">{prettyDate(date)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </Card>
+      <TableCard title="Ledger" subtitle={`${rows.length} transactions`}>
+        <DataTable
+          columns={columns}
+          rows={rows}
+          rowKey={(r) => r.id}
+          empty="No payments yet. Money in and tutor payouts will show up here."
+        />
+      </TableCard>
+    </div>
+  );
+}
+
+function Stat({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: string;
+  tone: "success" | "warning" | "brand";
+}) {
+  const color =
+    tone === "success"
+      ? "text-success"
+      : tone === "warning"
+      ? "text-warning"
+      : "text-primary";
+  return (
+    <div className="rounded-xl border border-border bg-card p-5 shadow-soft">
+      <p className="text-sm text-muted-foreground">{label}</p>
+      <p className={`mt-1 text-2xl font-extrabold ${color}`}>{value}</p>
     </div>
   );
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
+import { CheckCircle2, AlertCircle } from "lucide-react";
 import { submitRequest, type RequestState } from "./actions";
 import { Button } from "@/components/ui/Button";
 import { Label, Input, Select, Textarea } from "@/components/ui/Field";
@@ -12,7 +13,12 @@ const initial: RequestState = { ok: false };
 
 function Err({ errors }: { errors?: string[] }) {
   if (!errors?.length) return null;
-  return <p className="mt-1 text-sm text-red-600">{errors[0]}</p>;
+  return (
+    <p className="mt-1.5 flex items-center gap-1.5 text-sm text-destructive">
+      <AlertCircle className="h-4 w-4 shrink-0" aria-hidden />
+      {errors[0]}
+    </p>
+  );
 }
 
 export function RequestForm() {
@@ -23,31 +29,29 @@ export function RequestForm() {
     return (
       <div className="space-y-6">
         <Card className="text-center">
-          <div className="mx-auto grid h-14 w-14 place-items-center rounded-full bg-brand-100 text-brand-700">
-            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" aria-hidden>
-              <path d="M20 6 9 17l-5-5" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
+          <div className="mx-auto grid h-14 w-14 place-items-center rounded-full bg-success/15 text-success">
+            <CheckCircle2 className="h-7 w-7" aria-hidden />
           </div>
-          <h2 className="mt-4 text-2xl font-bold text-ink-900">
+          <h2 className="mt-4 text-2xl font-bold text-foreground">
             Got it — thank you!
           </h2>
-          <p className="mx-auto mt-2 max-w-md text-ink-600">
+          <p className="mx-auto mt-2 max-w-md text-muted-foreground">
             {matches.length > 0
               ? `Here ${matches.length === 1 ? "is a verified tutor" : `are ${matches.length} verified tutors`} who match your requirement. A real person from Bright Path will also call within a few hours to confirm the details and arrange a free demo.`
               : "A real person from Bright Path will call you within a few hours (often the same day) to confirm the details and send you 2–3 verified tutors."}
           </p>
-          <p className="mt-4 text-sm text-ink-400">
+          <p className="mt-4 text-sm text-muted-foreground">
             Keep your phone handy — the call comes from a Nepali number.
           </p>
         </Card>
 
         {matches.length > 0 && (
           <div>
-            <h3 className="mb-4 text-lg font-bold text-ink-900">
+            <h3 className="mb-4 text-lg font-bold text-foreground">
               Tutors matched to your requirement
             </h3>
             <MatchList matches={matches} />
-            <p className="mt-4 text-center text-sm text-ink-500">
+            <p className="mt-4 text-center text-sm text-muted-foreground">
               Contact details are shared once you pick a tutor and we confirm
               the match — this keeps everyone safe.
             </p>
@@ -60,37 +64,61 @@ export function RequestForm() {
   return (
     <form action={action} className="space-y-6">
       {state.error && (
-        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        <div className="flex items-center gap-2 rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+          <AlertCircle className="h-4 w-4 shrink-0" aria-hidden />
           {state.error}
         </div>
       )}
 
       <Card className="space-y-5">
-        <h3 className="text-sm font-bold uppercase tracking-wide text-ink-400">
+        <h3 className="text-sm font-bold uppercase tracking-wide text-muted-foreground">
           About you
         </h3>
         <div className="grid gap-5 sm:grid-cols-2">
           <div>
             <Label>Your name</Label>
-            <Input name="contact_name" placeholder="e.g. Sita Gurung" />
+            <Input
+              name="contact_name"
+              required
+              minLength={2}
+              autoComplete="name"
+              placeholder="e.g. Sita Gurung"
+              aria-invalid={!!state.fieldErrors?.contact_name}
+            />
             <Err errors={state.fieldErrors?.contact_name} />
           </div>
           <div>
             <Label hint="we call to verify">Mobile number</Label>
-            <Input name="phone" inputMode="numeric" placeholder="98XXXXXXXX" />
+            <Input
+              name="phone"
+              type="tel"
+              inputMode="numeric"
+              required
+              pattern="9[0-9]{9}"
+              maxLength={10}
+              autoComplete="tel"
+              title="10-digit Nepali mobile starting with 9"
+              placeholder="98XXXXXXXX"
+              aria-invalid={!!state.fieldErrors?.phone}
+            />
             <Err errors={state.fieldErrors?.phone} />
           </div>
         </div>
       </Card>
 
       <Card className="space-y-5">
-        <h3 className="text-sm font-bold uppercase tracking-wide text-ink-400">
+        <h3 className="text-sm font-bold uppercase tracking-wide text-muted-foreground">
           About the tuition
         </h3>
         <div className="grid gap-5 sm:grid-cols-2">
           <div>
             <Label>Class / level</Label>
-            <Select name="child_grade" defaultValue="">
+            <Select
+              name="child_grade"
+              required
+              defaultValue=""
+              aria-invalid={!!state.fieldErrors?.child_grade}
+            >
               <option value="" disabled>Select a level</option>
               {LEVELS.map((l) => <option key={l}>{l}</option>)}
             </Select>
@@ -110,7 +138,7 @@ export function RequestForm() {
             {SUBJECTS.map((s) => (
               <label
                 key={s}
-                className="cursor-pointer rounded-full border border-ink-200 bg-card px-3.5 py-1.5 text-sm text-ink-700 transition-colors has-[:checked]:border-brand-500 has-[:checked]:bg-brand-50 has-[:checked]:text-brand-800"
+                className="cursor-pointer rounded-full border border-border bg-card px-3.5 py-1.5 text-sm text-muted-foreground transition-colors hover:border-primary/50 has-[:checked]:border-primary has-[:checked]:bg-primary/10 has-[:checked]:text-primary has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring"
               >
                 <input type="checkbox" name="subjects" value={s} className="sr-only" />
                 {s}
@@ -122,13 +150,19 @@ export function RequestForm() {
       </Card>
 
       <Card className="space-y-5">
-        <h3 className="text-sm font-bold uppercase tracking-wide text-ink-400">
+        <h3 className="text-sm font-bold uppercase tracking-wide text-muted-foreground">
           Where & budget
         </h3>
         <div className="grid gap-5 sm:grid-cols-2">
           <div>
             <Label>Area / tole</Label>
-            <Input name="area" placeholder="e.g. Baneshwor, Kathmandu" />
+            <Input
+              name="area"
+              required
+              minLength={2}
+              placeholder="e.g. Baneshwor, Kathmandu"
+              aria-invalid={!!state.fieldErrors?.area}
+            />
             <Err errors={state.fieldErrors?.area} />
           </div>
           <div>
@@ -139,7 +173,16 @@ export function RequestForm() {
           </div>
           <div>
             <Label hint="per month, NPR">Budget</Label>
-            <Input name="budget" inputMode="numeric" placeholder="8000" />
+            <Input
+              name="budget"
+              type="number"
+              inputMode="numeric"
+              required
+              min={1000}
+              step={500}
+              placeholder="8000"
+              aria-invalid={!!state.fieldErrors?.budget}
+            />
             <Err errors={state.fieldErrors?.budget} />
           </div>
           <div>
@@ -165,7 +208,7 @@ export function RequestForm() {
         <Button type="submit" size="lg" disabled={pending} className="w-full sm:w-auto">
           {pending ? "Sending…" : "Send my requirement"}
         </Button>
-        <p className="text-xs text-ink-400">
+        <p className="text-xs text-muted-foreground">
           No payment now. We only charge after you confirm a tutor you like.
         </p>
       </div>

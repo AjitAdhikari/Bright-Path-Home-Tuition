@@ -1,27 +1,95 @@
-import { Card, Badge } from "@/components/ui/Card";
-import { npr } from "@/lib/utils";
+import { Badge } from "@/components/ui/Card";
+import { TableCard, DataTable, type Column } from "@/components/ui/Table";
+import { createClient } from "@/lib/supabase/server";
+import { npr, prettyDate } from "@/lib/utils";
 
-const tuitions = [
-  ["Ramesh K.", "SEE · Maths, Science", "Baneshwor", 9000, "active"],
-  ["Sita G.", "Class 6–8 · English", "Patan", 7000, "active"],
-  ["Anju M.", "IELTS", "Online", 15000, "ended"],
-] as const;
+type TuitionRow = {
+  id: string;
+  monthly_fee: number;
+  status: "active" | "ended";
+  start_date: string | null;
+  match: {
+    request: {
+      child_grade: string;
+      contact_name: string;
+      area: { name: string } | null;
+    } | null;
+  } | null;
+};
 
-export default function Tuitions() {
+export default async function Tuitions() {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("tuitions")
+    .select(
+      "id, monthly_fee, status, start_date, match:matches(request:requests(child_grade, contact_name, area:areas(name)))"
+    )
+    .order("created_at", { ascending: false });
+
+  const rows = (data ?? []) as TuitionRow[];
+
+  const columns: Column<TuitionRow>[] = [
+    {
+      key: "student",
+      header: "Student",
+      cell: (t) => (
+        <div>
+          <p className="font-semibold text-foreground">
+            {t.match?.request?.contact_name ?? "Student"}
+          </p>
+          <p className="text-xs text-muted-foreground">
+            {t.match?.request?.child_grade ?? "—"}
+          </p>
+        </div>
+      ),
+    },
+    {
+      key: "area",
+      header: "Area",
+      cell: (t) => (
+        <span className="text-muted-foreground">
+          {t.match?.request?.area?.name ?? "—"}
+        </span>
+      ),
+    },
+    {
+      key: "fee",
+      header: "Fee",
+      cell: (t) => (
+        <span className="font-semibold text-foreground">
+          {npr(t.monthly_fee)}/mo
+        </span>
+      ),
+    },
+    {
+      key: "since",
+      header: "Since",
+      className: "whitespace-nowrap",
+      cell: (t) => (
+        <span className="text-muted-foreground">
+          {t.start_date ? prettyDate(t.start_date) : "—"}
+        </span>
+      ),
+    },
+    {
+      key: "status",
+      header: "Status",
+      cell: (t) => (
+        <Badge tone={t.status === "active" ? "success" : "neutral"}>
+          <span className="capitalize">{t.status}</span>
+        </Badge>
+      ),
+    },
+  ];
+
   return (
-    <div className="space-y-3">
-      {tuitions.map(([name, need, area, fee, status]) => (
-        <Card key={name} className="flex items-center justify-between">
-          <div>
-            <p className="font-semibold text-ink-900">{name}</p>
-            <p className="text-sm text-ink-500">{need} · {area}</p>
-          </div>
-          <div className="flex items-center gap-4">
-            <span className="font-semibold text-ink-900">{npr(fee)}/mo</span>
-            <Badge tone={status === "active" ? "success" : "neutral"}>{status}</Badge>
-          </div>
-        </Card>
-      ))}
-    </div>
+    <TableCard title="My tuitions" subtitle={`${rows.length} total`}>
+      <DataTable
+        columns={columns}
+        rows={rows}
+        rowKey={(t) => t.id}
+        empty="No tuitions yet. Accepted leads that become regular classes show up here."
+      />
+    </TableCard>
   );
 }

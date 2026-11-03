@@ -1,5 +1,7 @@
-import { createServerClient } from "@supabase/ssr";
+import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+
+type CookieToSet = { name: string; value: string; options: CookieOptions };
 
 /**
  * Refreshes the Supabase session on every request and guards the three
@@ -17,7 +19,7 @@ export async function middleware(request: NextRequest) {
         getAll() {
           return request.cookies.getAll();
         },
-        setAll(cookiesToSet) {
+        setAll(cookiesToSet: CookieToSet[]) {
           cookiesToSet.forEach(({ name, value }) =>
             request.cookies.set(name, value)
           );
@@ -45,7 +47,9 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  // Role gate: the role is carried in the JWT via the Custom Access Token hook.
+  // Coarse role gate — keep each role in its own area. The real row-level
+  // guard is RLS in Postgres (is_admin() reads the profiles table), so this
+  // only needs the role from the user's metadata.
   if (needsAuth && user) {
     const role = (user.app_metadata?.role ?? user.user_metadata?.role) as
       | string
