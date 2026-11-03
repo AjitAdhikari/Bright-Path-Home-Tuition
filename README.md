@@ -116,3 +116,4 @@ entrance animation keep the whole product feeling like one system.
 > Dashboard tables currently show representative data so the UI reads clearly;
 > swap each for its Supabase query (the schema + RLS already back every screen).
 ```
+
