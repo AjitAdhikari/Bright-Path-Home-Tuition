@@ -1,10 +1,6 @@
 import type { Metadata } from "next";
-import {
-  Inter,
-  Lexend,
-  Geist_Mono,
-  Noto_Sans_Devanagari,
-} from "next/font/google";
+import { Inter, Lexend, Noto_Sans_Devanagari } from "next/font/google";
+import { GeistMono } from "geist/font/mono";
 import "./globals.css";
 import { SITE } from "@/lib/constants";
 import { ThemeProvider } from "@/components/theme-provider";
@@ -24,12 +20,8 @@ const lexend = Lexend({
   display: "swap",
 });
 
-/* Monospace face — Geist Mono. */
-const geistMono = Geist_Mono({
-  subsets: ["latin"],
-  variable: "--font-geist-mono",
-  display: "swap",
-});
+/* Monospace face — Geist Mono (self-hosted via the `geist` package, so there's
+   no build-time Google Fonts fetch to fail on). Exposes --font-geist-mono. */
 
 /* Devanagari for the नेपाली toggle. */
 const devanagari = Noto_Sans_Devanagari({
@@ -66,7 +58,7 @@ export default function RootLayout({
     <html
       lang="en"
       suppressHydrationWarning
-      className={`${inter.variable} ${lexend.variable} ${geistMono.variable} ${devanagari.variable} h-full antialiased`}
+      className={`${inter.variable} ${lexend.variable} ${GeistMono.variable} ${devanagari.variable} h-full antialiased`}
     >
       <body className="flex min-h-full flex-col">
         <ThemeProvider
