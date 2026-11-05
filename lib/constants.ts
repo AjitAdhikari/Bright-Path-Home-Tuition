@@ -4,7 +4,7 @@ export const SITE = {
   name: "Bright Path",
   fullName: "Bright Path Home Tuition",
   tagline: "Verified home tutors, matched by people who call first.",
-  whatsapp: process.env.NEXT_PUBLIC_WHATSAPP_NUMBER ?? "9779800000000",
+  whatsapp: process.env.NEXT_PUBLIC_WHATSAPP_NUMBER ?? "9779704121935",
 } as const;
 
 export const CASE_STATUS = [
