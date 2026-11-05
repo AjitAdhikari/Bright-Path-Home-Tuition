@@ -114,14 +114,29 @@ export async function submitApplication(
 
   const admin = createAdminClient();
 
-  // Soft duplicate guard: block a second OPEN application for the same email.
-  const { data: dup } = await admin
+  // Shared applicant fields for both first-time and resubmission paths.
+  const fields = {
+    full_name: d.full_name,
+    phone: d.phone,
+    education: d.education,
+    experience_years: d.experience_years,
+    gender: d.gender.toLowerCase(),
+    bio: d.bio,
+    areas: d.areas,
+    levels: d.levels.join(", "),
+  };
+
+  // Look for an existing OPEN application for this email. A review already in
+  // progress can't be resubmitted over, but one the admin sent back
+  // ("changes_requested") can — we update it in place and reset it to pending.
+  const { data: existing } = await admin
     .from("tutor_applicants")
-    .select("id, status")
+    .select("id, status, application_number")
     .eq("email", d.email)
     .in("status", ["pending_review", "under_review", "changes_requested"])
     .maybeSingle();
-  if (dup) {
+
+  if (existing && (existing.status as string) !== "changes_requested") {
     return {
       ok: false,
       error:
@@ -129,28 +144,55 @@ export async function submitApplication(
     };
   }
 
-  // 1. Create the applicant.
-  const { data: created, error: insErr } = await admin
-    .from("tutor_applicants")
-    .insert({
-      full_name: d.full_name,
-      email: d.email,
-      phone: d.phone,
-      education: d.education,
-      experience_years: d.experience_years,
-      gender: d.gender.toLowerCase(),
-      bio: d.bio,
-      areas: d.areas,
-      levels: d.levels.join(", "),
-    })
-    .select("id, application_number")
-    .single();
+  let applicantId: string;
+  let applicationNumber: string;
 
-  if (insErr || !created) {
-    return { ok: false, error: "Something went wrong saving your application. Please try again." };
+  if (existing) {
+    // Resubmission after changes were requested: update the row, clear the
+    // admin feedback, and move it back into the review queue.
+    applicantId = existing.id as string;
+    applicationNumber = existing.application_number as string;
+
+    const { error: updErr } = await admin
+      .from("tutor_applicants")
+      .update({
+        ...fields,
+        status: "pending_review",
+        admin_feedback: null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", applicantId);
+    if (updErr) {
+      return { ok: false, error: "Something went wrong saving your application. Please try again." };
+    }
+
+    // Replace the previous documents: delete old storage objects + rows so the
+    // freshly uploaded files below are the only ones the admin reviews.
+    const { data: oldDocs } = await admin
+      .from("applicant_documents")
+      .select("storage_path")
+      .eq("applicant_id", applicantId);
+    const oldPaths = ((oldDocs ?? []) as { storage_path: string }[])
+      .map((o) => o.storage_path)
+      .filter(Boolean);
+    if (oldPaths.length) {
+      await admin.storage.from("tutor-documents").remove(oldPaths);
+      await admin.from("applicant_documents").delete().eq("applicant_id", applicantId);
+    }
+  } else {
+    // 1. First-time application: create the applicant.
+    const { data: created, error: insErr } = await admin
+      .from("tutor_applicants")
+      .insert({ ...fields, email: d.email })
+      .select("id, application_number")
+      .single();
+
+    if (insErr || !created) {
+      return { ok: false, error: "Something went wrong saving your application. Please try again." };
+    }
+    applicantId = created.id as string;
+    applicationNumber = created.application_number as string;
   }
-  const applicantId = created.id as string;
-  const applicationNumber = created.application_number as string;
 
   // 2. Upload each document and record it.
   for (const { docType, file } of collected) {
