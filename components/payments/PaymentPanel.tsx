@@ -80,7 +80,7 @@ export function PaymentPanel({
           aria-label="Pay the first month"
           onClick={(e) => e.target === e.currentTarget && setOpen(false)}
         >
-          <div className="animate-rise w-full max-w-md overflow-hidden rounded-t-3xl bg-card shadow-card sm:rounded-3xl">
+          <div className="animate-rise flex max-h-[90dvh] w-full max-w-md flex-col overflow-y-auto rounded-t-3xl bg-card shadow-card sm:rounded-3xl">
             {/* Header */}
             <div className="flex items-start justify-between gap-3 border-b border-border px-6 py-5">
               <div>

@@ -241,7 +241,7 @@ export default function HomePage() {
 
       {/* ── Areas ──────────────────────────────────────── */}
       <section className="mx-auto max-w-6xl px-5 pb-10">
-        <div className="gradient-brand relative overflow-hidden rounded-3xl px-8 py-12 text-primary-foreground">
+        <div className="gradient-brand relative overflow-hidden rounded-3xl px-6 py-10 text-primary-foreground sm:px-8 sm:py-12">
           <div
             className="bg-dotted absolute inset-0 opacity-[0.07]"
             aria-hidden
@@ -273,7 +273,7 @@ export default function HomePage() {
 
       {/* ── CTA ────────────────────────────────────────── */}
       <section className="mx-auto max-w-6xl px-5 py-16">
-        <div className="relative overflow-hidden rounded-3xl border border-border bg-card px-8 py-16 text-center">
+        <div className="relative overflow-hidden rounded-3xl border border-border bg-card px-6 py-12 text-center sm:px-8 sm:py-16">
           <div
             className="gradient-mesh-bg absolute inset-0 opacity-70"
             aria-hidden

@@ -246,7 +246,7 @@ function DocList({
   return (
     <ul className="divide-y divide-border border-t border-border">
       {rows.map((d) => (
-        <li key={d.id} className="flex items-center gap-3 py-3">
+        <li key={d.id} className="flex flex-wrap items-center gap-3 py-3">
           <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-muted text-muted-foreground">
             <FileText className="h-4 w-4" aria-hidden />
           </span>
@@ -259,24 +259,26 @@ function DocList({
               {formatOf(d)} · {prettyDate(d.created_at)}
             </p>
           </div>
-          {previewable(d) && preview.get(d.id) && (
-            <a
-              href={preview.get(d.id)}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-primary transition-colors hover:bg-primary/10"
-            >
-              <Eye className="h-3.5 w-3.5" aria-hidden /> Preview
-            </a>
-          )}
-          {download.get(d.id) && (
-            <a
-              href={download.get(d.id)}
-              className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-foreground transition-colors hover:bg-muted"
-            >
-              <Download className="h-3.5 w-3.5" aria-hidden /> Download
-            </a>
-          )}
+          <div className="flex basis-full items-center gap-1 sm:basis-auto">
+            {previewable(d) && preview.get(d.id) && (
+              <a
+                href={preview.get(d.id)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-primary transition-colors hover:bg-primary/10"
+              >
+                <Eye className="h-3.5 w-3.5" aria-hidden /> Preview
+              </a>
+            )}
+            {download.get(d.id) && (
+              <a
+                href={download.get(d.id)}
+                className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-foreground transition-colors hover:bg-muted"
+              >
+                <Download className="h-3.5 w-3.5" aria-hidden /> Download
+              </a>
+            )}
+          </div>
         </li>
       ))}
     </ul>

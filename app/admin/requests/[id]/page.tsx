@@ -87,7 +87,7 @@ export default async function CaseDetail({
               label={CASE_STATUS_LABEL[request.status]}
             />
           </div>
-          <dl className="mt-5 grid grid-cols-2 gap-4 text-sm">
+          <dl className="mt-5 grid grid-cols-1 gap-4 text-sm sm:grid-cols-2">
             <Detail k="Phone" v={request.phone} />
             <Detail k="Area" v={request.area?.name ?? "—"} />
             <Detail k="Budget" v={request.budget ? npr(request.budget) : "—"} />

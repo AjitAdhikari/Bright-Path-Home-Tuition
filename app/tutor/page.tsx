@@ -116,7 +116,7 @@ function VerificationBanner({ status }: { status: VerificationStatus }) {
   }
   if (status === "needs_info") {
     return (
-      <Card className="flex items-center justify-between gap-4 border-warning/40 bg-warning/10">
+      <Card className="flex flex-col gap-4 border-warning/40 bg-warning/10 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-4">
           <AlertTriangle className="h-6 w-6 shrink-0 text-warning" aria-hidden />
           <div>
@@ -126,7 +126,7 @@ function VerificationBanner({ status }: { status: VerificationStatus }) {
             </p>
           </div>
         </div>
-        <ButtonLink href="/tutor/documents" size="sm">
+        <ButtonLink href="/tutor/documents" size="sm" className="w-full shrink-0 sm:w-auto">
           Upload
         </ButtonLink>
       </Card>
