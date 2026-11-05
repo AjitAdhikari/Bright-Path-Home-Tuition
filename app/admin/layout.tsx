@@ -1,4 +1,4 @@
-import { AdminShell, type AdminNavGroup } from "@/components/admin/AdminShell";
+import { DashboardShell, type NavGroup } from "@/components/dashboard/Shell";
 import { createClient } from "@/lib/supabase/server";
 
 const OPEN_APPLICATION_STATUSES = [
@@ -52,7 +52,7 @@ export default async function AdminLayout({
     email: p?.email ?? user?.email ?? null,
   };
 
-  const groups: AdminNavGroup[] = [
+  const groups: NavGroup[] = [
     {
       label: "Workspace",
       items: [{ href: "/admin", label: "Overview", icon: "dashboard" }],
@@ -89,8 +89,8 @@ export default async function AdminLayout({
   ];
 
   return (
-    <AdminShell groups={groups} user={me}>
+    <DashboardShell role="Admin" groups={groups} user={me}>
       {children}
-    </AdminShell>
+    </DashboardShell>
   );
 }

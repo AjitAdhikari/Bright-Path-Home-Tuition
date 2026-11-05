@@ -261,12 +261,12 @@
 }
 
 /* ------------------------------------------------------------------
-  Admin theme — logo palette (navy #0C1F3F · sun amber #F9B233 · white).
-  Scoped to AdminShell so the public site keeps its own palette until it
+  Dashboard theme — logo palette (navy #0C1F3F · sun amber #F9B233 · white).
+  Applied by DashboardShell (admin, tutor, parent) so the public site keeps its own palette until it
   is migrated. Semantic tokens are overridden directly because :root
   aliases (e.g. --primary: var(--brand-navy)) resolve at :root.
 ------------------------------------------------------------------- */
-.admin-theme {
+.dashboard-theme {
   --logo-navy: #0c1f3f;
   --logo-amber: #f9b233;
 
@@ -305,7 +305,7 @@
   --sidebar-ring: var(--logo-amber);
 }
 
-.dark .admin-theme {
+.dark .dashboard-theme {
   --background: #08111f;
   --foreground: #e8ecf3;
   --surface: #0d1a30;
