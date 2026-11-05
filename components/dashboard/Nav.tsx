@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -20,7 +21,6 @@ import {
   Plus,
   type LucideIcon,
 } from "lucide-react";
-import { Logo } from "@/components/Logo";
 import { cn } from "@/lib/utils";
 
 /**
@@ -30,6 +30,7 @@ import { cn } from "@/lib/utils";
 const ICONS = {
   dashboard: LayoutDashboard,
   cases: FolderOpen,
+  applications: ClipboardList,
   tutors: UserCheck,
   payments: Banknote,
   home: Home,
@@ -42,108 +43,150 @@ const ICONS = {
 } as const;
 
 export type IconName = keyof typeof ICONS;
-export type NavItem = { href: string; label: string; icon: IconName };
+export type NavItem = {
+  href: string;
+  label: string;
+  icon: IconName;
+  /** Optional "waiting" number shown as a badge next to the link. */
+  count?: number;
+};
+/** A labelled section of links. Leave `label` empty for an unlabelled list. */
+export type NavGroup = { label?: string; items: NavItem[] };
+export type DashboardUser = { name: string; email?: string | null };
+
+type Chrome = {
+  groups: NavGroup[];
+  role: string;
+  homeHref: string;
+  user: DashboardUser;
+};
 
 /** Longest matching href wins, so `/admin` isn't "active" on `/admin/requests`. */
-function useActiveHref(nav: NavItem[]) {
+function useActiveItem(groups: NavGroup[]) {
   const pathname = usePathname();
-  let best = "";
-  for (const item of nav) {
-    const match =
-      pathname === item.href || pathname.startsWith(item.href + "/");
-    if (match && item.href.length > best.length) best = item.href;
-  }
+  let best: NavItem | null = null;
+  for (const g of groups)
+    for (const item of g.items) {
+      const hit = pathname === item.href || pathname.startsWith(item.href + "/");
+      if (hit && item.href.length > (best?.href.length ?? 0)) best = item;
+    }
   return best;
 }
 
-function NavLinks({
-  nav,
-  activeHref,
+function NavList({
+  groups,
+  role,
   onNavigate,
 }: {
-  nav: NavItem[];
-  activeHref: string;
+  groups: NavGroup[];
+  role: string;
   onNavigate?: () => void;
 }) {
+  const activeHref = useActiveItem(groups)?.href;
   return (
-    <nav className="space-y-1">
-      {nav.map((item) => {
-        const active = item.href === activeHref;
-        const Icon: LucideIcon = ICONS[item.icon];
-        return (
-          <Link
-            key={item.href}
-            href={item.href}
-            onClick={onNavigate}
-            aria-current={active ? "page" : undefined}
-            className={cn(
-              "group relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors",
-              active
-                ? "bg-primary/10 text-primary"
-                : "text-muted-foreground hover:bg-muted hover:text-foreground"
-            )}
-          >
-            {/* Active rail */}
-            <span
-              className={cn(
-                "absolute left-0 top-1/2 h-5 w-1 -translate-y-1/2 rounded-full bg-primary transition-opacity",
-                active ? "opacity-100" : "opacity-0"
-              )}
-              aria-hidden
-            />
-            <Icon
-              className={cn(
-                "h-[18px] w-[18px] shrink-0 transition-transform",
-                !active && "group-hover:scale-110"
-              )}
-              aria-hidden
-            />
-            {item.label}
-          </Link>
-        );
-      })}
+    <nav aria-label={role} className="space-y-7">
+      {groups.map((group, gi) => (
+        <div key={group.label ?? gi}>
+          {group.label && (
+            <p className="mb-2 px-3 text-[11px] font-semibold uppercase tracking-wider text-sidebar-foreground/45">
+              {group.label}
+            </p>
+          )}
+          <ul className="space-y-0.5">
+            {group.items.map((item) => {
+              const active = item.href === activeHref;
+              const Icon: LucideIcon = ICONS[item.icon];
+              return (
+                <li key={item.href}>
+                  <Link
+                    href={item.href}
+                    onClick={onNavigate}
+                    aria-current={active ? "page" : undefined}
+                    className={cn(
+                      "flex items-center gap-3 rounded-md border-l-2 px-3 py-2 text-sm transition-colors",
+                      active
+                        ? "border-sidebar-primary bg-sidebar-accent font-semibold text-sidebar-accent-foreground"
+                        : "border-transparent text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground"
+                    )}
+                  >
+                    <Icon className={cn("h-4 w-4 shrink-0", active && "text-sidebar-primary")} aria-hidden />
+                    <span className="flex-1 truncate">{item.label}</span>
+                    {!!item.count && (
+                      <span className="min-w-5 rounded-full bg-sidebar-primary px-1.5 text-center text-[11px] font-semibold leading-5 tabular-nums text-sidebar-primary-foreground">
+                        {item.count}
+                      </span>
+                    )}
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      ))}
     </nav>
   );
 }
 
-function SignOut() {
+// The original Bright Path "B" mark (public/brand/logo-mark.png). It has a
+// white background, so it sits on the navy sidebar as a small white tile.
+function BrandMark() {
   return (
-    <form action="/auth/signout" method="post">
-      <button className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-medium text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive">
-        <LogOut className="h-[18px] w-[18px] shrink-0" aria-hidden />
-        Sign out
-      </button>
-    </form>
+    <Image
+      src="/brand/logo-mark.png"
+      alt=""
+      width={34}
+      height={34}
+      priority
+      className="h-[34px] w-[34px] shrink-0 rounded-lg"
+    />
   );
 }
 
-/** Desktop sidebar body: links + sign-out, shown inside the <aside>. */
-export function SidebarBody({ nav }: { nav: NavItem[] }) {
-  const activeHref = useActiveHref(nav);
+function Brand({ role, homeHref }: { role: string; homeHref: string }) {
   return (
-    <>
-      <div className="mt-6 flex-1">
-        <NavLinks nav={nav} activeHref={activeHref} />
-      </div>
-      <div className="border-t border-border pt-3">
-        <SignOut />
-      </div>
-    </>
+    <Link href={homeHref} className="flex items-center gap-3 px-3">
+      <BrandMark />
+      <span className="min-w-0">
+        <span className="block font-heading text-[17px] font-bold leading-tight text-sidebar-foreground">
+          Bright <span className="text-sidebar-primary">Path</span>
+        </span>
+        <span className="block text-xs text-sidebar-foreground/55">{role}</span>
+      </span>
+    </Link>
   );
 }
 
-/** Mobile top bar + slide-over drawer (phones have no sidebar otherwise). */
-export function MobileNav({
-  nav,
-  role,
-  title,
-}: {
-  nav: NavItem[];
-  role: string;
-  title: string;
-}) {
+function Footer({ user }: { user: DashboardUser }) {
+  return (
+    <div className="border-t border-sidebar-border px-3 pt-4">
+      <p className="truncate text-sm font-medium text-sidebar-foreground">{user.name}</p>
+      {user.email && <p className="truncate text-xs text-sidebar-foreground/55">{user.email}</p>}
+      <form action="/auth/signout" method="post" className="mt-3">
+        <button className="inline-flex items-center gap-2 text-sm text-sidebar-foreground/70 hover:text-sidebar-primary">
+          <LogOut className="h-4 w-4" aria-hidden />
+          Sign out
+        </button>
+      </form>
+    </div>
+  );
+}
+
+/** Desktop sidebar (hidden below `lg`, where the mobile menu takes over). */
+export function Sidebar({ groups, role, homeHref, user }: Chrome) {
+  return (
+    <aside className="sticky top-0 hidden h-dvh w-60 shrink-0 flex-col border-r border-sidebar-border bg-sidebar px-3 py-7 lg:flex">
+      <Brand role={role} homeHref={homeHref} />
+      <div className="mt-9 flex-1 overflow-y-auto">
+        <NavList groups={groups} role={role} />
+      </div>
+      <Footer user={user} />
+    </aside>
+  );
+}
+
+/** Menu button + slide-over drawer for phones and tablets. */
+export function MobileMenu({ groups, role, homeHref, user }: Chrome) {
   const [open, setOpen] = useState(false);
-  const activeHref = useActiveHref(nav);
 
   useEffect(() => {
     if (!open) return;
@@ -157,55 +200,50 @@ export function MobileNav({
   }, [open]);
 
   return (
-    <div className="lg:hidden">
-      <header className="sticky top-0 z-30 flex items-center justify-between border-b border-border bg-card/90 px-4 py-3 backdrop-blur">
-        <button
-          type="button"
-          onClick={() => setOpen(true)}
-          aria-label="Open menu"
-          className="grid h-10 w-10 place-items-center rounded-xl text-foreground transition-colors hover:bg-muted"
-        >
-          <Menu className="h-5 w-5" aria-hidden />
-        </button>
-        <h1 className="truncate text-base font-bold text-foreground">{title}</h1>
-        <div className="grid h-9 w-9 place-items-center rounded-full bg-primary/15 text-sm font-bold text-primary">
-          {role[0]}
-        </div>
-      </header>
+    <>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        aria-label="Open menu"
+        className="-ml-2 grid h-10 w-10 place-items-center rounded-md text-foreground hover:bg-muted lg:hidden"
+      >
+        <Menu className="h-5 w-5" aria-hidden />
+      </button>
 
       {open && (
         <div
-          className="fixed inset-0 z-50 bg-foreground/50 backdrop-blur-sm"
+          className="fixed inset-0 z-50 bg-black/50 lg:hidden"
           onClick={(e) => e.target === e.currentTarget && setOpen(false)}
         >
-          <div className="animate-rise flex h-dvh w-72 max-w-[82%] flex-col bg-sidebar p-4 shadow-card">
-            <div className="flex items-center justify-between px-2 py-1">
-              <Logo />
+          <div className="flex h-dvh w-64 max-w-[85%] flex-col border-r border-sidebar-border bg-sidebar px-3 py-6">
+            <div className="flex items-start justify-between">
+              <Brand role={role} homeHref={homeHref} />
               <button
                 type="button"
                 onClick={() => setOpen(false)}
                 aria-label="Close menu"
-                className="grid h-9 w-9 place-items-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                className="grid h-8 w-8 place-items-center rounded-md text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground"
               >
                 <X className="h-5 w-5" aria-hidden />
               </button>
             </div>
-            <p className="mb-4 pl-2 text-xs font-medium text-muted-foreground">
-              {role} space
-            </p>
-            <div className="flex-1 overflow-y-auto">
-              <NavLinks
-                nav={nav}
-                activeHref={activeHref}
-                onNavigate={() => setOpen(false)}
-              />
+            <div className="mt-8 flex-1 overflow-y-auto">
+              <NavList groups={groups} role={role} onNavigate={() => setOpen(false)} />
             </div>
-            <div className="border-t border-border pt-3">
-              <SignOut />
-            </div>
+            <Footer user={user} />
           </div>
         </div>
       )}
-    </div>
+    </>
+  );
+}
+
+/** Header title: the label of the active nav link, else the fallback. */
+export function PageTitle({ groups, fallback }: { groups: NavGroup[]; fallback: string }) {
+  const active = useActiveItem(groups);
+  return (
+    <h1 className="truncate text-base font-semibold text-foreground">
+      {active?.label ?? fallback}
+    </h1>
   );
 }

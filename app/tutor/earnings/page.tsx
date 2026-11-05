@@ -1,5 +1,5 @@
-import { StatTile } from "@/components/dashboard/Shell";
-import { Card, Badge } from "@/components/ui/Card";
+import { Figures } from "@/components/dashboard/Figures";
+import { Badge } from "@/components/ui/Card";
 import { createClient } from "@/lib/supabase/server";
 import { npr, prettyDate } from "@/lib/utils";
 
@@ -28,53 +28,59 @@ export default async function Earnings() {
     .reduce((s, p) => s + Number(p.amount), 0);
 
   return (
-    <div className="space-y-6">
-      <div className="grid gap-4 sm:grid-cols-3">
-        <StatTile label="Paid out" value={npr(paid)} />
-        <StatTile label="Pending" value={npr(pending)} tone="accent" />
-        <StatTile label="Payouts" value={payouts.length} tone="ink" />
-      </div>
+    <div className="space-y-10">
+      <Figures
+        items={[
+          { label: "Paid out", value: npr(paid), note: "Released to you so far" },
+          { label: "Pending", value: npr(pending), note: "Waiting for classes to finish" },
+          { label: "Payouts", value: payouts.length, note: "In total" },
+        ]}
+      />
 
-      <Card>
-        <h2 className="font-bold text-foreground">Payout history</h2>
-        {payouts.length === 0 ? (
-          <p className="mt-3 text-sm text-muted-foreground">
-            No payouts yet. Once you teach a confirmed tuition, your share is
-            released here.
-          </p>
-        ) : (
-          <ul className="mt-4 divide-y divide-border">
-            {payouts.map((p) => (
-              <li
-                key={p.id}
-                className="flex items-center justify-between py-3"
-              >
-                <div>
-                  <p className="text-sm font-medium text-foreground">
-                    First-month share
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    {prettyDate(p.paid_at ?? p.created_at)}
-                  </p>
-                </div>
-                <div className="flex items-center gap-3">
-                  <span className="font-semibold text-foreground">
-                    {npr(p.amount)}
-                  </span>
-                  <Badge tone={p.status === "paid" ? "success" : "warning"}>
-                    <span className="capitalize">{p.status}</span>
-                  </Badge>
-                </div>
-              </li>
-            ))}
-          </ul>
-        )}
-        <p className="mt-4 text-xs text-muted-foreground">
-          Bright Path collects the first month from the parent and releases your
-          50% share after classes are taught. From month two, parents pay you
-          directly.
-        </p>
-      </Card>
+      <div className="grid gap-10 lg:grid-cols-[minmax(0,1fr)_280px] lg:gap-8">
+        <section>
+          <h2 className="mb-3 text-sm font-semibold text-foreground">Payout history</h2>
+          <div className="rounded-lg border border-border bg-card">
+            {payouts.length === 0 ? (
+              <div className="px-5 py-8">
+                <p className="text-sm font-medium text-foreground">No payouts yet.</p>
+                <p className="mt-1 max-w-md text-sm text-muted-foreground">
+                  Once you teach a confirmed tuition, your share of the first month is
+                  released here.
+                </p>
+              </div>
+            ) : (
+              <ul className="divide-y divide-border">
+                {payouts.map((p) => (
+                  <li key={p.id} className="flex items-center gap-4 px-5 py-4">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium text-foreground">First-month share</p>
+                      <p className="text-xs text-muted-foreground">
+                        {prettyDate(p.paid_at ?? p.created_at)}
+                      </p>
+                    </div>
+                    <Badge tone={p.status === "paid" ? "success" : "warning"}>
+                      <span className="capitalize">{p.status}</span>
+                    </Badge>
+                    <span className="w-24 text-right font-semibold tabular-nums text-foreground">
+                      {npr(p.amount)}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </section>
+
+        <aside className="text-sm">
+          <h3 className="mb-3 font-semibold text-foreground">How payouts work</h3>
+          <ol className="space-y-3 border-l border-border pl-4 text-muted-foreground">
+            <li>Bright Path collects the first month&apos;s fee from the parent.</li>
+            <li>After the classes are taught, we release your 50% share.</li>
+            <li>From month two, parents pay you directly.</li>
+          </ol>
+        </aside>
+      </div>
     </div>
   );
 }
