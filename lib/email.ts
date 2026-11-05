@@ -47,6 +47,12 @@ function getTransporter(): Transporter | null {
     port,
     secure,
     auth: { user, pass },
+    // Fail fast instead of hanging the request (and the submit button) when the
+    // SMTP host is slow or unreachable from the server. Email is best-effort;
+    // a failed send is logged and never blocks the application workflow.
+    connectionTimeout: 10_000, // waiting for the TCP connection
+    greetingTimeout: 10_000, // waiting for the SMTP greeting
+    socketTimeout: 20_000, // inactivity on an established connection
   });
   return cachedTransporter;
 }

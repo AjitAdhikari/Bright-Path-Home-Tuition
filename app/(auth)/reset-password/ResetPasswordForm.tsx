@@ -23,15 +23,51 @@ export function ResetPasswordForm() {
 
   useEffect(() => {
     const supabase = createClient();
-    // The link may establish the session immediately, or via the
-    // PASSWORD_RECOVERY auth event once the token in the URL is processed.
+
+    // Listen for the recovery session being established from the link.
     const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
       if (session) setHasSession(true);
     });
-    supabase.auth.getSession().then(({ data }) => {
+
+    async function establish() {
+      // 1. If Supabase redirected back with an explicit error (expired/used
+      //    link), it lands in the URL hash or query — surface it plainly.
+      const hash = new URLSearchParams(
+        window.location.hash.replace(/^#/, "")
+      );
+      const query = new URLSearchParams(window.location.search);
+      const errDesc =
+        hash.get("error_description") ?? query.get("error_description");
+      if (errDesc) {
+        setError(
+          "This link has expired or was already used. Request a new one below."
+        );
+        setReady(true);
+        return;
+      }
+
+      // 2. PKCE links come back as ?code=…; exchange it for a session. (Hash
+      //    token links are handled automatically by detectSessionInUrl.)
+      const code = query.get("code");
+      if (code) {
+        const { error: exErr } =
+          await supabase.auth.exchangeCodeForSession(code);
+        if (exErr) {
+          setError(
+            "This link has expired or was already used. Request a new one below."
+          );
+          setReady(true);
+          return;
+        }
+      }
+
+      // 3. Whatever route we took, check whether a session now exists.
+      const { data } = await supabase.auth.getSession();
       if (data.session) setHasSession(true);
       setReady(true);
-    });
+    }
+
+    establish();
     return () => sub.subscription.unsubscribe();
   }, []);
 
@@ -55,7 +91,15 @@ export function ResetPasswordForm() {
     const { error: upErr } = await supabase.auth.updateUser({ password });
     if (upErr) {
       setLoading(false);
-      setError("Couldn't set your password. The link may have expired — use “Forgot password” on the login page.");
+      const msg = upErr.message.toLowerCase();
+      // "Auth session missing" / expired token → the link is no longer valid.
+      if (msg.includes("session") || msg.includes("expired") || msg.includes("token")) {
+        setError(
+          "Your set-password link has expired. Request a fresh one below and try again."
+        );
+      } else {
+        setError(upErr.message);
+      }
       return;
     }
     setDone(true);
@@ -76,12 +120,18 @@ export function ResetPasswordForm() {
 
   if (ready && !hasSession) {
     return (
-      <div className="space-y-3">
+      <div className="space-y-4">
         <div className="flex items-start gap-2 rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
           <AlertCircle className="h-4 w-4 shrink-0" aria-hidden />
-          This link is invalid or has expired. Please use “Forgot password” on
-          the login page with the email you applied with.
+          {error ??
+            "This link is invalid or has expired. Request a fresh link with the email you applied with."}
         </div>
+        <a
+          href="/forgot-password"
+          className="inline-flex h-11 w-full items-center justify-center rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground transition-colors hover:brightness-110"
+        >
+          Request a new link
+        </a>
       </div>
     );
   }
