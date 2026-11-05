@@ -166,12 +166,17 @@ export async function approveApplicant(formData: FormData): Promise<void> {
   if (linkData?.properties?.action_link) link = linkData.properties.action_link;
 
   const mail = applicationApprovedEmail(a.full_name, link);
-  await sendEmail({
+  const sent = await sendEmail({
     to: a.email,
     subject: mail.subject,
     html: mail.html,
     template: "application_approved",
   });
+  if (sent.status !== "sent") {
+    console.warn(
+      `[email] approval mail ${sent.status} for ${a.email}: ${sent.error ?? ""}`
+    );
+  }
 
   revalidatePath("/admin/applicants");
   revalidatePath(`/admin/applicants/${id}`);
@@ -204,12 +209,17 @@ export async function rejectApplicant(formData: FormData): Promise<void> {
 
   if (a?.email) {
     const mail = applicationRejectedEmail(a.full_name, reason ?? undefined);
-    await sendEmail({
+    const sent = await sendEmail({
       to: a.email,
       subject: mail.subject,
       html: mail.html,
       template: "application_rejected",
     });
+    if (sent.status !== "sent") {
+      console.warn(
+        `[email] rejection mail ${sent.status} for ${a.email}: ${sent.error ?? ""}`
+      );
+    }
   }
 
   revalidatePath("/admin/applicants");
@@ -245,14 +255,19 @@ export async function requestChanges(formData: FormData): Promise<void> {
     const mail = applicationChangesRequestedEmail(
       a.full_name,
       feedback,
-      `${siteUrl()}/application-status`
+      `${siteUrl()}/become-tutor`
     );
-    await sendEmail({
+    const sent = await sendEmail({
       to: a.email,
       subject: mail.subject,
       html: mail.html,
       template: "application_changes_requested",
     });
+    if (sent.status !== "sent") {
+      console.warn(
+        `[email] changes-requested mail ${sent.status} for ${a.email}: ${sent.error ?? ""}`
+      );
+    }
   }
 
   revalidatePath("/admin/applicants");

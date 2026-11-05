@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
 import { Eye, EyeOff } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/Button";
@@ -58,7 +59,15 @@ export function LoginForm() {
         <Input name="email" type="email" required placeholder="you@example.com" />
       </div>
       <div>
-        <Label>Password</Label>
+        <div className="flex items-center justify-between">
+          <Label>Password</Label>
+          <Link
+            href="/forgot-password"
+            className="text-xs font-semibold text-primary hover:underline"
+          >
+            Forgot password?
+          </Link>
+        </div>
         <div className="relative">
           <Input
             name="password"

@@ -112,16 +112,33 @@ export async function submitApplication(
     }
   }
 
+  console.log("[apply] start", { email: d.email, docs: collected.length });
   const admin = createAdminClient();
 
-  // Soft duplicate guard: block a second OPEN application for the same email.
-  const { data: dup } = await admin
+  // Shared applicant fields for both first-time and resubmission paths.
+  const fields = {
+    full_name: d.full_name,
+    phone: d.phone,
+    education: d.education,
+    experience_years: d.experience_years,
+    gender: d.gender.toLowerCase(),
+    bio: d.bio,
+    areas: d.areas,
+    levels: d.levels.join(", "),
+  };
+
+  // Look for an existing OPEN application for this email. A review already in
+  // progress can't be resubmitted over, but one the admin sent back
+  // ("changes_requested") can — we update it in place and reset it to pending.
+  const { data: existing } = await admin
     .from("tutor_applicants")
-    .select("id, status")
+    .select("id, status, application_number")
     .eq("email", d.email)
     .in("status", ["pending_review", "under_review", "changes_requested"])
     .maybeSingle();
-  if (dup) {
+  console.log("[apply] existing lookup done", { found: !!existing });
+
+  if (existing && (existing.status as string) !== "changes_requested") {
     return {
       ok: false,
       error:
@@ -129,31 +146,60 @@ export async function submitApplication(
     };
   }
 
-  // 1. Create the applicant.
-  const { data: created, error: insErr } = await admin
-    .from("tutor_applicants")
-    .insert({
-      full_name: d.full_name,
-      email: d.email,
-      phone: d.phone,
-      education: d.education,
-      experience_years: d.experience_years,
-      gender: d.gender.toLowerCase(),
-      bio: d.bio,
-      areas: d.areas,
-      levels: d.levels.join(", "),
-    })
-    .select("id, application_number")
-    .single();
+  let applicantId: string;
+  let applicationNumber: string;
 
-  if (insErr || !created) {
-    return { ok: false, error: "Something went wrong saving your application. Please try again." };
+  if (existing) {
+    // Resubmission after changes were requested: update the row, clear the
+    // admin feedback, and move it back into the review queue.
+    applicantId = existing.id as string;
+    applicationNumber = existing.application_number as string;
+
+    const { error: updErr } = await admin
+      .from("tutor_applicants")
+      .update({
+        ...fields,
+        status: "pending_review",
+        admin_feedback: null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", applicantId);
+    if (updErr) {
+      return { ok: false, error: "Something went wrong saving your application. Please try again." };
+    }
+
+    // Replace the previous documents: delete old storage objects + rows so the
+    // freshly uploaded files below are the only ones the admin reviews.
+    const { data: oldDocs } = await admin
+      .from("applicant_documents")
+      .select("storage_path")
+      .eq("applicant_id", applicantId);
+    const oldPaths = ((oldDocs ?? []) as { storage_path: string }[])
+      .map((o) => o.storage_path)
+      .filter(Boolean);
+    if (oldPaths.length) {
+      await admin.storage.from("tutor-documents").remove(oldPaths);
+      await admin.from("applicant_documents").delete().eq("applicant_id", applicantId);
+    }
+  } else {
+    // 1. First-time application: create the applicant.
+    const { data: created, error: insErr } = await admin
+      .from("tutor_applicants")
+      .insert({ ...fields, email: d.email })
+      .select("id, application_number")
+      .single();
+
+    if (insErr || !created) {
+      return { ok: false, error: "Something went wrong saving your application. Please try again." };
+    }
+    applicantId = created.id as string;
+    applicationNumber = created.application_number as string;
   }
-  const applicantId = created.id as string;
-  const applicationNumber = created.application_number as string;
+  console.log("[apply] row saved", { applicantId, applicationNumber });
 
   // 2. Upload each document and record it.
   for (const { docType, file } of collected) {
+    console.log("[apply] uploading", docType, file.name);
     const safeName = file.name.replace(/[^a-zA-Z0-9.\-_]/g, "_");
     const path = `applicants/${applicantId}/${docType}-${Date.now()}-${safeName}`;
     const bytes = new Uint8Array(await file.arrayBuffer());
@@ -171,18 +217,30 @@ export async function submitApplication(
     });
   }
 
-  // 3. Acknowledge by email (no-op if Resend isn't configured).
+  console.log("[apply] uploads done, sending ack email");
+
+  // 3. Acknowledge by email — strictly best-effort. The application is already
+  //    saved; never let a slow/unreachable mail server hold up the response (it
+  //    would freeze the submit button on "Submitting…"). Cap the wait, and if it
+  //    overruns let the send finish in the background. Delivery is still audited
+  //    in email_notifications, so a miss here is visible to admins.
   try {
     const mail = applicationReceivedEmail(d.full_name);
-    await sendEmail({
+    const send = sendEmail({
       to: d.email,
       subject: mail.subject,
       html: mail.html,
       template: "application_received",
     });
+    send.catch(() => {}); // swallow late rejection if the race below wins
+    await Promise.race([
+      send,
+      new Promise((resolve) => setTimeout(resolve, 8000)),
+    ]);
   } catch {
     /* best-effort */
   }
 
+  console.log("[apply] done, returning success");
   return { ok: true, applicationNumber };
 }
