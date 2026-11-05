@@ -1,9 +1,15 @@
+import Image from "next/image";
 import Link from "next/link";
 import { SITE } from "@/lib/constants";
 
 /**
- * Bright Path mark — a house (home tuition) with a warm amber spark at its
- * heart: the bright path a child takes at home. Deep-navy rounded square.
+ * Bright Path logo: the "B" mark (sun rising over a winding path, cropped
+ * from the original artwork in public/brand/bright-path-logo.png) with the
+ * wordmark — "Bright" in navy, "Path" in sun amber, as in the original.
+ *
+ * The mark keeps its white background, so it reads on dark surfaces too.
+ * "Path" is a <b>, not a <span>, so callers that recolour the last span
+ * (e.g. the auth panel) only change "Bright".
  */
 export function Logo({
   className = "",
@@ -18,33 +24,16 @@ export function Logo({
       className={`inline-flex items-center gap-2.5 ${className}`}
       aria-label={`${SITE.name} home`}
     >
-      <svg width="36" height="36" viewBox="0 0 36 36" aria-hidden="true">
-        <defs>
-          <linearGradient id="bp-logo" x1="0" y1="0" x2="36" y2="36">
-            <stop offset="0%" stopColor="#1f3568" />
-            <stop offset="100%" stopColor="#0f1c38" />
-          </linearGradient>
-        </defs>
-        <rect width="36" height="36" rx="10" fill="url(#bp-logo)" />
-        <path
-          d="M8 17 L18 9 L28 17"
-          fill="none"
-          stroke="#fff"
-          strokeWidth="2.4"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-        <path
-          d="M11 16 V27 H25 V16"
-          fill="none"
-          stroke="#fff"
-          strokeWidth="2.4"
-          strokeLinejoin="round"
-        />
-        <circle cx="18" cy="21" r="2.6" fill="#e0a23b" />
-      </svg>
-      <span className="font-heading text-xl font-bold tracking-tight text-foreground">
-        {SITE.name}
+      <Image
+        src="/brand/logo-mark.png"
+        alt=""
+        width={36}
+        height={36}
+        priority
+        className="h-9 w-9 shrink-0 rounded-lg"
+      />
+      <span className="font-heading text-xl font-bold tracking-tight text-[#0c1f3f] dark:text-foreground">
+        Bright <b className="font-bold text-[#f9b233]">Path</b>
       </span>
     </Link>
   );

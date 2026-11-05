@@ -12,7 +12,8 @@ export function ThemeToggle({ className }: { className?: string }) {
   const { resolvedTheme, setTheme } = useTheme();
   React.useEffect(() => setMounted(true), []);
 
-  const isDark = resolvedTheme === "dark";
+  // Gate on `mounted` so server and first client render match exactly.
+  const isDark = mounted && resolvedTheme === "dark";
 
   return (
     <button
@@ -24,12 +25,12 @@ export function ThemeToggle({ className }: { className?: string }) {
         className
       )}
     >
-      {mounted && isDark ? (
+      {isDark ? (
         <Sun className="h-4 w-4" aria-hidden="true" />
       ) : (
         <Moon className="h-4 w-4" aria-hidden="true" />
       )}
-      <span>{mounted && isDark ? "Light" : "Dark"}</span>
+      <span>{isDark ? "Light" : "Dark"}</span>
     </button>
   );
 }
