@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -126,24 +127,18 @@ function NavList({
   );
 }
 
-// Simplified logo mark: rising sun over a winding path.
+// The original Bright Path "B" mark (public/brand/logo-mark.png). It has a
+// white background, so it sits on the navy sidebar as a small white tile.
 function BrandMark() {
   return (
-    <svg width="34" height="34" viewBox="0 0 34 34" aria-hidden className="shrink-0">
-      <rect width="34" height="34" rx="9" fill="#ffffff" fillOpacity="0.08" />
-      <g stroke="#f9b233" strokeWidth="1.8" strokeLinecap="round">
-        <path d="M17 5.5v3" />
-        <path d="M10.5 8l1.6 2.3" />
-        <path d="M23.5 8l-1.6 2.3" />
-        <path d="M7.5 13l2.5 1" />
-        <path d="M26.5 13l-2.5 1" />
-      </g>
-      <path d="M11 17a6 6 0 0 1 12 0z" fill="#f9b233" />
-      <path
-        d="M9 18.2c4-.9 9-.9 13-.3-4 .8-7.2 2.4-7.2 5.2 0 2.3 2.4 4.1 5.6 5.4h-4.2c-2.8-1.3-4.4-3.2-4.4-5.3 0-2 1.2-3.7 3.2-4.5-2 .1-4 .1-6-.5z"
-        fill="#ffffff"
-      />
-    </svg>
+    <Image
+      src="/brand/logo-mark.png"
+      alt=""
+      width={34}
+      height={34}
+      priority
+      className="h-[34px] w-[34px] shrink-0 rounded-lg"
+    />
   );
 }
 

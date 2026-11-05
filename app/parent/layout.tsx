@@ -1,8 +1,17 @@
-import { DashboardShell, type NavItem } from "@/components/dashboard/Shell";
+import { DashboardShell, type NavGroup } from "@/components/dashboard/Shell";
 
-const nav: NavItem[] = [
-  { href: "/parent", label: "My requests", icon: "requests" },
-  { href: "/find-tutor", label: "New request", icon: "add" },
+const groups: NavGroup[] = [
+  {
+    label: "Tuition",
+    items: [
+      { href: "/parent", label: "Overview", icon: "home" },
+      { href: "/find-tutor", label: "New request", icon: "add" },
+    ],
+  },
+  {
+    label: "Account",
+    items: [{ href: "/parent/profile", label: "Profile", icon: "profile" }],
+  },
 ];
 
 export default function ParentLayout({
@@ -11,12 +20,7 @@ export default function ParentLayout({
   children: React.ReactNode;
 }) {
   return (
-    <DashboardShell
-      nav={nav}
-      role="Parent"
-      title="My requests"
-      subtitle="Track your tutor requests and matches"
-    >
+    <DashboardShell groups={groups} role="Parent" title="Parent" profileHref="/parent/profile">
       {children}
     </DashboardShell>
   );
