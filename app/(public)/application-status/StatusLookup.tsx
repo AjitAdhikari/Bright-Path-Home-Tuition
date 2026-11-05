@@ -119,14 +119,22 @@ export function StatusLookup() {
                   </p>
                 </div>
               </div>
-              {r.status === "changes_requested" && r.feedback && (
+              {r.status === "changes_requested" && (
                 <div className="rounded-xl border border-warning/40 bg-warning/5 px-4 py-3">
                   <p className="text-sm font-semibold text-foreground">
                     Changes requested
                   </p>
-                  <p className="mt-1 whitespace-pre-line text-sm text-muted-foreground">
-                    {r.feedback}
-                  </p>
+                  {r.feedback && (
+                    <p className="mt-1 whitespace-pre-line text-sm text-muted-foreground">
+                      {r.feedback}
+                    </p>
+                  )}
+                  <a
+                    href="/become-tutor"
+                    className="mt-3 inline-flex min-h-10 items-center rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground transition-colors hover:brightness-110"
+                  >
+                    Update &amp; resubmit application
+                  </a>
                 </div>
               )}
               {r.status === "rejected" && r.rejectionReason && (
