@@ -1,18 +1,55 @@
 import "server-only";
+import nodemailer, { type Transporter } from "nodemailer";
 import { SITE } from "@/lib/constants";
 import { createAdminClient } from "@/lib/supabase/server";
 
 /**
- * Transactional email via Resend's REST API (no SDK dependency — a plain
- * `fetch`). Every send is logged to `email_notifications` for admin audit.
+ * Transactional email over SMTP (via nodemailer). Every send is logged to
+ * `email_notifications` for admin audit.
  *
- * Email is OPTIONAL infrastructure: if RESEND_API_KEY is absent the call is a
+ * Email is OPTIONAL infrastructure: if SMTP is not configured the call is a
  * graceful no-op (status "skipped"), so the application workflow never blocks
- * on mail delivery. Set RESEND_API_KEY + EMAIL_FROM in the environment and a
- * verified sender/domain in Resend to make delivery live.
+ * on mail delivery. Set these environment variables to make delivery live:
+ *
+ *   SMTP_HOST      e.g. smtp.gmail.com, smtp.zoho.com, mail.yourdomain.com
+ *   SMTP_PORT      587 (STARTTLS, default) or 465 (implicit TLS)
+ *   SMTP_SECURE    "true" for port 465, otherwise leave unset/"false"
+ *   SMTP_USER      the SMTP login (usually the full email address)
+ *   SMTP_PASS      the SMTP password / app password
+ *   EMAIL_FROM     the From header, e.g. Bright Path <noreply@yourdomain.com>
+ *
+ * The transporter is created once per server process and reused.
  */
 
-const RESEND_ENDPOINT = "https://api.resend.com/emails";
+let cachedTransporter: Transporter | null | undefined;
+
+function getTransporter(): Transporter | null {
+  if (cachedTransporter !== undefined) return cachedTransporter;
+
+  const host = process.env.SMTP_HOST;
+  const user = process.env.SMTP_USER;
+  const pass = process.env.SMTP_PASS;
+
+  // All three are required for a usable connection; otherwise email is disabled.
+  if (!host || !user || !pass) {
+    cachedTransporter = null;
+    return null;
+  }
+
+  const port = Number(process.env.SMTP_PORT ?? 587);
+  // Port 465 uses implicit TLS; 587/25 use STARTTLS (secure:false + upgrade).
+  const secure = process.env.SMTP_SECURE
+    ? process.env.SMTP_SECURE === "true"
+    : port === 465;
+
+  cachedTransporter = nodemailer.createTransport({
+    host,
+    port,
+    secure,
+    auth: { user, pass },
+  });
+  return cachedTransporter;
+}
 
 export type EmailTemplate =
   | "application_received"
@@ -42,29 +79,28 @@ export async function sendEmail({
   template,
   applicationId = null,
 }: SendArgs): Promise<SendResult> {
-  const apiKey = process.env.RESEND_API_KEY;
-  const from = process.env.EMAIL_FROM ?? `${SITE.name} <onboarding@resend.dev>`;
+  const from =
+    process.env.EMAIL_FROM ??
+    process.env.SMTP_USER ??
+    `${SITE.name} <no-reply@localhost>`;
+  const transporter = getTransporter();
 
   let result: SendResult;
 
-  if (!apiKey) {
-    result = { status: "skipped", error: "RESEND_API_KEY not configured" };
+  if (!transporter) {
+    result = { status: "skipped", error: "SMTP not configured" };
   } else {
     try {
-      const res = await fetch(RESEND_ENDPOINT, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ from, to, subject, html }),
-      });
-      if (!res.ok) {
-        const body = await res.text().catch(() => "");
-        result = { status: "failed", error: `Resend ${res.status}: ${body}`.slice(0, 500) };
+      const info = await transporter.sendMail({ from, to, subject, html });
+      // SMTP accepted the message for at least one recipient.
+      const accepted = (info.accepted ?? []) as Array<string | { address: string }>;
+      if (accepted.length === 0) {
+        result = {
+          status: "failed",
+          error: `No recipient accepted: ${info.response ?? ""}`.slice(0, 500),
+        };
       } else {
-        const data = (await res.json().catch(() => ({}))) as { id?: string };
-        result = { status: "sent", providerId: data.id };
+        result = { status: "sent", providerId: info.messageId };
       }
     } catch (e) {
       result = {
