@@ -112,6 +112,7 @@ export async function submitApplication(
     }
   }
 
+  console.log("[apply] start", { email: d.email, docs: collected.length });
   const admin = createAdminClient();
 
   // Shared applicant fields for both first-time and resubmission paths.
@@ -135,6 +136,7 @@ export async function submitApplication(
     .eq("email", d.email)
     .in("status", ["pending_review", "under_review", "changes_requested"])
     .maybeSingle();
+  console.log("[apply] existing lookup done", { found: !!existing });
 
   if (existing && (existing.status as string) !== "changes_requested") {
     return {
@@ -193,9 +195,11 @@ export async function submitApplication(
     applicantId = created.id as string;
     applicationNumber = created.application_number as string;
   }
+  console.log("[apply] row saved", { applicantId, applicationNumber });
 
   // 2. Upload each document and record it.
   for (const { docType, file } of collected) {
+    console.log("[apply] uploading", docType, file.name);
     const safeName = file.name.replace(/[^a-zA-Z0-9.\-_]/g, "_");
     const path = `applicants/${applicantId}/${docType}-${Date.now()}-${safeName}`;
     const bytes = new Uint8Array(await file.arrayBuffer());
@@ -213,18 +217,30 @@ export async function submitApplication(
     });
   }
 
-  // 3. Acknowledge by email (no-op if Resend isn't configured).
+  console.log("[apply] uploads done, sending ack email");
+
+  // 3. Acknowledge by email — strictly best-effort. The application is already
+  //    saved; never let a slow/unreachable mail server hold up the response (it
+  //    would freeze the submit button on "Submitting…"). Cap the wait, and if it
+  //    overruns let the send finish in the background. Delivery is still audited
+  //    in email_notifications, so a miss here is visible to admins.
   try {
     const mail = applicationReceivedEmail(d.full_name);
-    await sendEmail({
+    const send = sendEmail({
       to: d.email,
       subject: mail.subject,
       html: mail.html,
       template: "application_received",
     });
+    send.catch(() => {}); // swallow late rejection if the race below wins
+    await Promise.race([
+      send,
+      new Promise((resolve) => setTimeout(resolve, 8000)),
+    ]);
   } catch {
     /* best-effort */
   }
 
+  console.log("[apply] done, returning success");
   return { ok: true, applicationNumber };
 }
