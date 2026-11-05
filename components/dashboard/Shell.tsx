@@ -1,4 +1,5 @@
 import { type LucideIcon } from "lucide-react";
+import Link from "next/link";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import {
   Sidebar,
@@ -27,6 +28,7 @@ export async function DashboardShell({
   role,
   title,
   user,
+  profileHref,
   children,
 }: {
   nav?: NavItem[];
@@ -36,6 +38,8 @@ export async function DashboardShell({
   title?: string;
   /** Pass to skip the lookup (e.g. if the layout already loaded it). */
   user?: DashboardUser;
+  /** Shows a profile button (top right) linking here. */
+  profileHref?: string;
   /** @deprecated No longer shown; kept so existing layouts still compile. */
   subtitle?: string;
   children: React.ReactNode;
@@ -57,6 +61,7 @@ export async function DashboardShell({
               <PageTitle groups={navGroups} fallback={title ?? role} />
             </div>
             <ThemeToggle className="min-h-9 px-3" />
+            {profileHref && <ProfileButton href={profileHref} user={me} />}
           </div>
         </header>
 
@@ -65,6 +70,25 @@ export async function DashboardShell({
         </main>
       </div>
     </div>
+  );
+}
+
+/** Avatar + first name, linking to the user's profile page. */
+function ProfileButton({ href, user }: { href: string; user: DashboardUser }) {
+  // First letter of the first and last name: "Bikash KC" -> "BK".
+  const parts = user.name.trim().split(/\s+/);
+  const initials = (
+    (parts[0]?.[0] ?? "") + (parts.length > 1 ? parts[parts.length - 1][0] : "")
+  ).toUpperCase();
+  return (
+    <Link
+      href={href}
+      aria-label={`Your profile (${user.name})`}
+      title={user.name}
+      className="grid h-9 w-9 place-items-center rounded-full bg-primary text-xs font-semibold text-primary-foreground ring-offset-2 ring-offset-card transition hover:ring-2 hover:ring-accent"
+    >
+      {initials || "?"}
+    </Link>
   );
 }
 
