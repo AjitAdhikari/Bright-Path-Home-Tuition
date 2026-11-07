@@ -1,28 +1,33 @@
 import type { Metadata } from "next";
-import { Inter, Plus_Jakarta_Sans, Noto_Sans_Devanagari } from "next/font/google";
+import { Playfair_Display, Source_Serif_4, Noto_Sans_Devanagari } from "next/font/google";
 import { GeistMono } from "geist/font/mono";
 import "./globals.css";
 import { SITE } from "@/lib/constants";
 import { ThemeProvider } from "@/components/theme-provider";
 import { Toaster } from "sonner";
 
-/* Body / sans face — Inter. */
-const inter = Inter({
+/* Body / UI face — Source Serif 4. A highly readable editorial serif that
+   stays comfortable in forms, tables and long copy. */
+const sourceSerif = Source_Serif_4({
   subsets: ["latin"],
-  variable: "--font-inter",
+  weight: ["400", "500", "600", "700"],
+  style: ["normal", "italic"],
+  variable: "--font-source-serif",
   display: "swap",
 });
 
-/* Heading / display face — Plus Jakarta Sans (modern, art-directed). */
-const jakarta = Plus_Jakarta_Sans({
+/* Heading / display face — Playfair Display. Large editorial headings with an
+   elegant italic used selectively for emphasis. */
+const playfair = Playfair_Display({
   subsets: ["latin"],
-  weight: ["500", "600", "700", "800"],
-  variable: "--font-jakarta",
+  weight: ["400", "500", "600", "700", "800"],
+  style: ["normal", "italic"],
+  variable: "--font-playfair",
   display: "swap",
 });
 
-/* Monospace face — Geist Mono (self-hosted via the `geist` package, so there's
-   no build-time Google Fonts fetch to fail on). Exposes --font-geist-mono. */
+/* Monospace face — Geist Mono (self-hosted via the `geist` package). Used for
+   small uppercase technical labels / metadata. Exposes --font-geist-mono. */
 
 /* Devanagari for the नेपाली toggle. Not preloaded: the default (English) view
    never needs it, so it stays out of the critical path and loads on demand
@@ -62,7 +67,7 @@ export default function RootLayout({
     <html
       lang="en"
       suppressHydrationWarning
-      className={`${inter.variable} ${jakarta.variable} ${GeistMono.variable} ${devanagari.variable} h-full antialiased`}
+      className={`${sourceSerif.variable} ${playfair.variable} ${GeistMono.variable} ${devanagari.variable} h-full antialiased`}
     >
       <body className="flex min-h-full flex-col">
         <ThemeProvider
