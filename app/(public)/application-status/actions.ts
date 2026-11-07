@@ -5,6 +5,7 @@ import {
   APPLICATION_STATUS_LABEL,
   type ApplicationStatus,
 } from "@/lib/constants";
+import { limitByIp } from "@/lib/rate-limit";
 
 export type LookupState = {
   ok: boolean;
@@ -29,6 +30,12 @@ export async function lookupApplication(
   _prev: LookupState,
   formData: FormData
 ): Promise<LookupState> {
+  // Throttle guessing of application-number + email pairs.
+  const rl = await limitByIp("status-lookup", 15, 10 * 60_000);
+  if (!rl.ok) {
+    return { ok: false, error: `Too many attempts. Please wait ${rl.retryAfterSec}s.` };
+  }
+
   const number = String(formData.get("application_number") ?? "").trim();
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
   if (!number || !email) {

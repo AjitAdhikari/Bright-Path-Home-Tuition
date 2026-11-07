@@ -70,6 +70,10 @@ export async function approveApplicant(formData: FormData): Promise<void> {
   const { data: createdUser, error: createErr } = await admin.auth.admin.createUser({
     email: a.email,
     email_confirm: true,
+    // Role lives in app_metadata (server-controlled, not editable by the user)
+    // so the middleware gate can't be spoofed. user_metadata keeps the display
+    // fields and a role copy for the handle_new_user trigger / older readers.
+    app_metadata: { role: "tutor" },
     user_metadata: { role: "tutor", full_name: a.full_name, phone: a.phone },
   });
   if (createErr) {

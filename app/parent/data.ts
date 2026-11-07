@@ -1,5 +1,6 @@
 import type { createClient } from "@/lib/supabase/server";
 import type { CaseStatus } from "@/lib/constants";
+import { getAreaMap } from "@/lib/lookups";
 
 type Supabase = Awaited<ReturnType<typeof createClient>>;
 
@@ -68,16 +69,14 @@ export type ParentPayment = {
  * admin previewing /parent sees only their own (not every family's) data.
  */
 export async function loadParentWork(supabase: Supabase, uid: string) {
-  const [{ data: reqRows }, { data: areaRows }] = await Promise.all([
+  const [{ data: reqRows }, areaName] = await Promise.all([
     supabase
       .from("requests")
       .select("id, child_grade, board, area_id, mode, budget, status, created_at, request_subjects(subjects(name))")
       .eq("parent_id", uid)
       .order("created_at", { ascending: false }),
-    supabase.from("areas").select("id, name"),
+    getAreaMap(),
   ]);
-
-  const areaName = new Map(((areaRows ?? []) as { id: number; name: string }[]).map((a) => [a.id, a.name]));
 
   const requests: ParentRequest[] = (
     (reqRows ?? []) as unknown as {

@@ -3,7 +3,9 @@
 import { z } from "zod";
 import { createAdminClient } from "@/lib/supabase/server";
 import { sendEmail, applicationReceivedEmail } from "@/lib/email";
-import { DOC_TYPE_MAP, DOC_TYPES, MAX_DOC_BYTES } from "@/lib/constants";
+import { DOC_TYPES } from "@/lib/constants";
+import { safeStorageName, validateDocFile } from "@/lib/uploads";
+import { limitByIp } from "@/lib/rate-limit";
 
 // Trim every string the same way the client does before validating, so a form
 // the client accepted is never rejected by the server over stray whitespace
@@ -43,23 +45,6 @@ export type TutorState = {
   applicationNumber?: string;
 };
 
-function extOf(name: string) {
-  const i = name.lastIndexOf(".");
-  return i >= 0 ? name.slice(i + 1).toLowerCase() : "";
-}
-
-/** Server-side file validation mirroring the client checks. */
-function fileError(docType: string, file: File): string | null {
-  const spec = DOC_TYPE_MAP[docType];
-  if (!spec) return "Unknown document type.";
-  if (file.size === 0) return null; // treated as "not provided"
-  if (file.size > MAX_DOC_BYTES) return `${spec.label} must be under 5 MB.`;
-  const ext = extOf(file.name);
-  const ok = spec.exts.includes(ext) && (spec.mimes.includes(file.type) || !file.type);
-  if (!ok) return `${spec.label} must be a ${spec.exts.join(", ").toUpperCase()} file.`;
-  return null;
-}
-
 /**
  * Public tutor application — NO login required and NO auth account created.
  * Writes a `tutor_applicants` row and uploads the documents to the private
@@ -70,6 +55,15 @@ export async function submitApplication(
   _prev: TutorState,
   formData: FormData
 ): Promise<TutorState> {
+  // Throttle application spam: 5 submissions / 10 min per client.
+  const rl = await limitByIp("become-tutor", 5, 10 * 60_000);
+  if (!rl.ok) {
+    return {
+      ok: false,
+      error: `Too many attempts. Please wait ${rl.retryAfterSec}s and try again.`,
+    };
+  }
+
   const parsed = schema.safeParse({
     full_name: formData.get("full_name"),
     phone: formData.get("phone"),
@@ -105,14 +99,13 @@ export async function submitApplication(
       };
     }
     for (const file of files) {
-      const err = fileError(spec.type, file);
+      const err = validateDocFile(spec.type, file);
       if (err) return { ok: false, error: err };
       if (!spec.multiple && collected.some((c) => c.docType === spec.type)) continue;
       collected.push({ docType: spec.type, file });
     }
   }
 
-  console.log("[apply] start", { email: d.email, docs: collected.length });
   const admin = createAdminClient();
 
   // Shared applicant fields for both first-time and resubmission paths.
@@ -136,7 +129,6 @@ export async function submitApplication(
     .eq("email", d.email)
     .in("status", ["pending_review", "under_review", "changes_requested"])
     .maybeSingle();
-  console.log("[apply] existing lookup done", { found: !!existing });
 
   if (existing && (existing.status as string) !== "changes_requested") {
     return {
@@ -195,12 +187,10 @@ export async function submitApplication(
     applicantId = created.id as string;
     applicationNumber = created.application_number as string;
   }
-  console.log("[apply] row saved", { applicantId, applicationNumber });
 
   // 2. Upload each document and record it.
   for (const { docType, file } of collected) {
-    console.log("[apply] uploading", docType, file.name);
-    const safeName = file.name.replace(/[^a-zA-Z0-9.\-_]/g, "_");
+    const safeName = safeStorageName(file.name);
     const path = `applicants/${applicantId}/${docType}-${Date.now()}-${safeName}`;
     const bytes = new Uint8Array(await file.arrayBuffer());
     const { error: upErr } = await admin.storage
@@ -216,8 +206,6 @@ export async function submitApplication(
       size_bytes: file.size,
     });
   }
-
-  console.log("[apply] uploads done, sending ack email");
 
   // 3. Acknowledge by email — strictly best-effort. The application is already
   //    saved; never let a slow/unreachable mail server hold up the response (it
@@ -241,6 +229,5 @@ export async function submitApplication(
     /* best-effort */
   }
 
-  console.log("[apply] done, returning success");
   return { ok: true, applicationNumber };
 }

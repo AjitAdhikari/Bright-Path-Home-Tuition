@@ -24,12 +24,15 @@ const jakarta = Plus_Jakarta_Sans({
 /* Monospace face — Geist Mono (self-hosted via the `geist` package, so there's
    no build-time Google Fonts fetch to fail on). Exposes --font-geist-mono. */
 
-/* Devanagari for the नेपाली toggle. */
+/* Devanagari for the नेपाली toggle. Not preloaded: the default (English) view
+   never needs it, so it stays out of the critical path and loads on demand
+   (with swap) only when Nepali content is shown. */
 const devanagari = Noto_Sans_Devanagari({
   subsets: ["devanagari"],
   weight: ["400", "500", "600", "700"],
   variable: "--font-noto-devanagari",
   display: "swap",
+  preload: false,
 });
 
 export const metadata: Metadata = {

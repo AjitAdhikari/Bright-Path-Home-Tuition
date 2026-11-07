@@ -1,0 +1,345 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Setu Architecture</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+  /* Layout: layered flow — client at top, Next.js middle, Supabase + external at base; a tap-to-focus node graph */
+  :root {
+    --bg: oklch(0.985 0.004 240);
+    --panel: oklch(1 0 0);
+    --ink: oklch(0.23 0.02 250);
+    --muted: oklch(0.52 0.015 250);
+    --line: oklch(0.9 0.01 250);
+    --edge: oklch(0.78 0.02 250);
+    --accent: oklch(0.58 0.14 250);      /* indigo — the app */
+    --public: oklch(0.6 0.12 200);        /* teal — public */
+    --auth: oklch(0.65 0.13 90);          /* amber — auth */
+    --role: oklch(0.58 0.14 300);         /* violet — dashboards */
+    --data: oklch(0.55 0.13 150);         /* green — supabase */
+    --ext: oklch(0.6 0.15 25);            /* red/orange — external */
+    --chip: oklch(0.96 0.008 250);
+    --shadow: 0 1px 2px oklch(0.2 0.02 250 / 0.06), 0 6px 20px oklch(0.2 0.02 250 / 0.07);
+    --mono: "Geist Mono", ui-monospace, "SF Mono", Menlo, monospace;
+    --sans: "Inter", system-ui, -apple-system, sans-serif;
+    --display: "Lexend", var(--sans);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: oklch(0.19 0.015 260);
+      --panel: oklch(0.235 0.018 260);
+      --ink: oklch(0.93 0.01 250);
+      --muted: oklch(0.66 0.015 250);
+      --line: oklch(0.32 0.02 260);
+      --edge: oklch(0.45 0.02 260);
+      --accent: oklch(0.72 0.13 255);
+      --public: oklch(0.72 0.11 200);
+      --auth: oklch(0.78 0.12 90);
+      --role: oklch(0.74 0.12 300);
+      --data: oklch(0.72 0.12 150);
+      --ext: oklch(0.72 0.14 30);
+      --chip: oklch(0.28 0.018 260);
+      --shadow: 0 1px 2px oklch(0 0 0 / 0.3), 0 8px 24px oklch(0 0 0 / 0.35);
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: oklch(0.19 0.015 260);
+    --panel: oklch(0.235 0.018 260);
+    --ink: oklch(0.93 0.01 250);
+    --muted: oklch(0.66 0.015 250);
+    --line: oklch(0.32 0.02 260);
+    --edge: oklch(0.45 0.02 260);
+    --accent: oklch(0.72 0.13 255);
+    --public: oklch(0.72 0.11 200);
+    --auth: oklch(0.78 0.12 90);
+    --role: oklch(0.74 0.12 300);
+    --data: oklch(0.72 0.12 150);
+    --ext: oklch(0.72 0.14 30);
+    --chip: oklch(0.28 0.018 260);
+    --shadow: 0 1px 2px oklch(0 0 0 / 0.3), 0 8px 24px oklch(0 0 0 / 0.35);
+    color-scheme: dark;
+  }
+
+  * { box-sizing: border-box; }
+  body { background: var(--bg); color: var(--ink); font-family: var(--sans); line-height: 1.5; }
+  .wrap { max-width: 1120px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left,0px)); padding-right: max(16px, env(safe-area-inset-right,0px)); padding-block: 28px 56px; }
+
+  header.head { margin-bottom: 20px; }
+  .kicker { font-family: var(--mono); font-size: 12px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--accent); }
+  h1 { font-family: var(--display); font-size: clamp(28px, 5vw, 40px); margin: 6px 0 4px; letter-spacing: -0.02em; text-wrap: balance; }
+  .sub { color: var(--muted); max-width: 62ch; }
+  .stack { font-family: var(--mono); font-size: 12px; color: var(--muted); margin-top: 10px; display: flex; flex-wrap: wrap; gap: 6px; }
+  .stack span { background: var(--chip); border: 1px solid var(--line); border-radius: 999px; padding: 3px 10px; }
+
+  .toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 18px 0 14px; }
+  .legend { display: flex; flex-wrap: wrap; gap: 6px 14px; }
+  .lg { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--muted); cursor: pointer; user-select: none; border-radius: 6px; padding: 2px 4px; }
+  .lg .dot { width: 11px; height: 11px; border-radius: 3px; }
+  .lg[aria-pressed="true"] { color: var(--ink); font-weight: 600; }
+  .spacer { flex: 1 1 40px; }
+  button.reset { font-family: var(--mono); font-size: 12px; color: var(--muted); background: var(--panel); border: 1px solid var(--line); border-radius: 7px; padding: 5px 11px; cursor: pointer; }
+  button.reset:hover { color: var(--ink); border-color: var(--edge); }
+
+  .diagram { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; box-shadow: var(--shadow); overflow-x: auto; }
+  svg { display: block; width: 100%; min-width: 760px; height: auto; }
+
+  /* SVG node/edge styling */
+  .edge { stroke: var(--edge); stroke-width: 1.4; fill: none; opacity: 0.55; transition: opacity .2s, stroke .2s, stroke-width .2s; }
+  .edge.flow { stroke-dasharray: 5 4; }
+  .node { cursor: pointer; }
+  .node rect { rx: 9; transition: opacity .2s; }
+  .node .box { fill: var(--panel); stroke-width: 1.5; }
+  .node .title { font-family: var(--sans); font-weight: 650; font-size: 13px; fill: var(--ink); }
+  .node .meta { font-family: var(--mono); font-size: 10px; fill: var(--muted); }
+  .band { fill: none; }
+  .bandlabel { font-family: var(--mono); font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; fill: var(--muted); }
+  .dim { opacity: 0.12 !important; }
+  .node.dim { opacity: 0.16; }
+
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 14px; margin-top: 26px; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 16px; box-shadow: var(--shadow); }
+  .card h3 { font-family: var(--display); font-size: 15px; margin: 0 0 4px; display: flex; align-items: center; gap: 8px; }
+  .card h3 .dot { width: 10px; height: 10px; border-radius: 3px; }
+  .card p { margin: 0 0 10px; font-size: 13px; color: var(--muted); }
+  .card ul { margin: 0; padding: 0; list-style: none; display: flex; flex-wrap: wrap; gap: 5px; }
+  .card li { font-family: var(--mono); font-size: 11px; background: var(--chip); border: 1px solid var(--line); border-radius: 6px; padding: 3px 7px; }
+
+  .note { margin-top: 10px; font-size: 12.5px; color: var(--muted); }
+  details.schema { margin-top: 26px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 4px 16px; box-shadow: var(--shadow); }
+  details.schema summary { cursor: pointer; font-family: var(--display); font-weight: 600; padding: 12px 0; font-size: 15px; }
+  .schema-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 16px; padding: 4px 0 16px; }
+  .schema-grid section h4 { font-family: var(--mono); font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--data); margin: 0 0 6px; }
+  .schema-grid ul { margin: 0; padding: 0; list-style: none; }
+  .schema-grid li { font-size: 12.5px; padding: 2px 0; border-bottom: 1px dashed var(--line); }
+  footer { margin-top: 28px; font-size: 12px; color: var(--muted); font-family: var(--mono); }
+
+  @media (max-width: 520px) { .stack { font-size: 11px; } }
+</style>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Lexend:wght@500;600;700&display=swap">
+
+<div class="wrap">
+  <header class="head">
+    <div class="kicker">Architecture Graph</div>
+    <h1>Setu — Tutor&nbsp;↔&nbsp;Parent Bridge</h1>
+    <p class="sub">A trusted bridge between parents and verified home tutors in Nepal. End-to-end map: browser request → middleware gate → App Router surfaces → server actions & helpers → Supabase (Auth, RLS Postgres, Storage) → external providers.</p>
+    <div class="stack">
+      <span>Next.js 15.1 · App Router</span><span>React 19</span><span>TypeScript</span>
+      <span>Supabase (SSR + RLS)</span><span>Tailwind v4 · shadcn</span><span>Zod</span>
+      <span>eSewa · Khalti</span><span>Nodemailer</span>
+    </div>
+  </header>
+
+  <div class="toolbar">
+    <div class="legend" id="legend">
+      <span class="lg" data-layer="public" aria-pressed="false"><span class="dot" style="background:var(--public)"></span>Public site</span>
+      <span class="lg" data-layer="auth" aria-pressed="false"><span class="dot" style="background:var(--auth)"></span>Auth</span>
+      <span class="lg" data-layer="role" aria-pressed="false"><span class="dot" style="background:var(--role)"></span>Dashboards</span>
+      <span class="lg" data-layer="api" aria-pressed="false"><span class="dot" style="background:var(--accent)"></span>API / actions</span>
+      <span class="lg" data-layer="data" aria-pressed="false"><span class="dot" style="background:var(--data)"></span>Supabase</span>
+      <span class="lg" data-layer="ext" aria-pressed="false"><span class="dot" style="background:var(--ext)"></span>External</span>
+    </div>
+    <span class="spacer"></span>
+    <button class="reset" id="reset">Reset focus</button>
+  </div>
+
+  <div class="diagram">
+    <svg viewBox="0 0 980 760" role="img" aria-label="Setu system architecture diagram" id="svg"></svg>
+  </div>
+  <p class="note">Tap any node to isolate its connections. Tap a legend swatch to focus a whole layer. Dashed edges are request/redirect flows; solid edges are data/dependency links.</p>
+
+  <div class="grid" id="cards"></div>
+
+  <details class="schema">
+    <summary>Postgres schema — ~35 tables behind row-level security</summary>
+    <div class="schema-grid" id="schema"></div>
+  </details>
+
+  <footer>Setu · "setu" = bridge · Generated architecture map from the repository source.</footer>
+</div>
+
+<script>
+const NS = "http://www.w3.org/2000/svg";
+const svg = document.getElementById("svg");
+
+// layer -> css var
+const COLOR = { public:"--public", auth:"--auth", role:"--role", api:"--accent", data:"--data", ext:"--ext", client:"--ink", mw:"--accent" };
+
+// nodes: id, layer, x, y, w, h, title, meta
+const N = [
+  // client
+  {id:"browser", layer:"client", x:390, y:24, w:200, h:46, title:"Browser", meta:"parent · tutor · admin"},
+  // middleware
+  {id:"mw", layer:"mw", x:360, y:100, w:260, h:48, title:"middleware.ts", meta:"session refresh · role gate"},
+
+  // public band (y ~ 190)
+  {id:"home", layer:"public", x:20, y:196, w:150, h:44, title:"(public) site", meta:"home · about · how-it-works"},
+  {id:"findtutor", layer:"public", x:184, y:196, w:150, h:44, title:"find-tutor", meta:"RequestForm · actions"},
+  {id:"become", layer:"public", x:348, y:196, w:150, h:44, title:"become-tutor", meta:"TutorForm · actions"},
+  {id:"status", layer:"public", x:512, y:196, w:150, h:44, title:"application-status", meta:"StatusLookup · actions"},
+  // auth band
+  {id:"auth", layer:"auth", x:690, y:196, w:150, h:44, title:"(auth)", meta:"login · forgot · reset"},
+  {id:"signout", layer:"auth", x:854, y:196, w:106, h:44, title:"signout", meta:"route.ts"},
+
+  // role dashboards band (y ~ 300)
+  {id:"parent", layer:"role", x:20, y:306, w:175, h:48, title:"/parent", meta:"requests · profile · steps"},
+  {id:"tutor", layer:"role", x:210, y:306, w:195, h:48, title:"/tutor", meta:"docs · tuitions · earnings"},
+  {id:"admin", layer:"role", x:420, y:306, w:230, h:48, title:"/admin", meta:"applicants · requests · tutors · payments"},
+
+  // api / actions band (y ~ 410)
+  {id:"payinit", layer:"api", x:20, y:416, w:170, h:46, title:"/api/payments/initiate", meta:"route.ts"},
+  {id:"esewacb", layer:"api", x:204, y:416, w:150, h:46, title:"esewa/callback", meta:"route.ts"},
+  {id:"khalticb", layer:"api", x:368, y:416, w:150, h:46, title:"khalti/callback", meta:"route.ts"},
+  {id:"actions", layer:"api", x:532, y:416, w:170, h:46, title:"server actions", meta:"\"use server\" · Zod"},
+
+  // lib band (y ~ 510)
+  {id:"supaserver", layer:"data", x:20, y:516, w:150, h:46, title:"lib/supabase/server", meta:"SSR cookies client"},
+  {id:"supaclient", layer:"data", x:184, y:516, w:150, h:46, title:"lib/supabase/client", meta:"browser client"},
+  {id:"paylib", layer:"api", x:348, y:516, w:150, h:46, title:"lib/payments", meta:"esewa · khalti · HMAC"},
+  {id:"email", layer:"api", x:512, y:516, w:150, h:46, title:"lib/email", meta:"nodemailer · SMTP"},
+
+  // supabase band (y ~ 620)
+  {id:"supaauth", layer:"data", x:60, y:626, w:170, h:50, title:"Supabase Auth", meta:"users · JWT · metadata role"},
+  {id:"pg", layer:"data", x:250, y:626, w:220, h:50, title:"Postgres + RLS", meta:"~35 tables · is_admin()"},
+  {id:"storage", layer:"data", x:490, y:626, w:170, h:50, title:"Supabase Storage", meta:"tutor documents"},
+
+  // external band (right column)
+  {id:"esewa", layer:"ext", x:706, y:416, w:120, h:46, title:"eSewa ePay v2", meta:"gateway"},
+  {id:"khalti", layer:"ext", x:838, y:416, w:122, h:46, title:"Khalti", meta:"gateway"},
+  {id:"smtp", layer:"ext", x:706, y:516, w:254, h:46, title:"SMTP / WhatsApp", meta:"email · notifications"},
+];
+
+// edges: from -> to, flow? (dashed request) else solid dependency
+const E = [
+  ["browser","mw",1],
+  ["mw","home",1],["mw","findtutor",1],["mw","become",1],["mw","status",1],
+  ["mw","auth",1],["mw","signout",1],["mw","parent",1],["mw","tutor",1],["mw","admin",1],
+  // dashboards & public forms -> actions/api
+  ["findtutor","actions",0],["become","actions",0],["status","actions",0],
+  ["parent","actions",0],["tutor","actions",0],["admin","actions",0],
+  ["parent","payinit",1],["payinit","paylib",0],
+  ["esewacb","paylib",0],["khalticb","paylib",0],
+  ["payinit","esewa",1],["payinit","khalti",1],
+  ["esewa","esewacb",1],["khalti","khalticb",1],
+  // actions & routes -> supabase server + libs
+  ["actions","supaserver",0],["actions","email",0],
+  ["home","supaserver",0],["parent","supaserver",0],["tutor","supaserver",0],["admin","supaserver",0],
+  ["auth","supaclient",0],["signout","supaserver",0],
+  ["paylib","supaserver",0],
+  ["esewacb","email",0],["khalticb","email",0],
+  // libs -> supabase services
+  ["supaserver","supaauth",0],["supaserver","pg",0],["supaserver","storage",0],
+  ["supaclient","supaauth",0],["supaclient","pg",0],
+  ["mw","supaserver",0],
+  ["paylib","esewa",0],["paylib","khalti",0],
+  ["email","smtp",0],
+  ["tutor","storage",0],
+];
+
+const byId = Object.fromEntries(N.map(n=>[n.id,n]));
+function cx(n){return n.x+n.w/2;} function cy(n){return n.y+n.h/2;}
+
+// bands
+const BANDS = [
+  {y:190, h:58, label:"Public & Auth routes"},
+  {y:300, h:60, label:"Role dashboards (RLS-scoped)"},
+  {y:410, h:118, label:"API routes · server actions · lib"},
+  {y:620, h:62, label:"Supabase backend"},
+];
+BANDS.forEach(b=>{
+  const t = document.createElementNS(NS,"text");
+  t.setAttribute("class","bandlabel"); t.setAttribute("x",14); t.setAttribute("y",b.y-6);
+  t.textContent=b.label; svg.appendChild(t);
+});
+
+// edges first
+const edgeEls=[];
+E.forEach(([a,b,flow])=>{
+  const na=byId[a], nb=byId[b];
+  const p=document.createElementNS(NS,"path");
+  const x1=cx(na), y1=na.y+na.h, x2=cx(nb), y2=nb.y;
+  // route: if target is above source, connect appropriately
+  let d;
+  if (y2>=y1-10){ const my=(y1+y2)/2; d=`M${x1},${y1} C${x1},${my} ${x2},${my} ${x2},${y2}`; }
+  else { const sy=na.y, ey=nb.y+nb.h; const my=(sy+ey)/2; d=`M${x1},${sy} C${x1},${my} ${x2},${my} ${x2},${ey}`; }
+  p.setAttribute("d",d); p.setAttribute("class","edge"+(flow?" flow":""));
+  p.dataset.a=a; p.dataset.b=b; svg.appendChild(p); edgeEls.push(p);
+});
+
+// nodes
+const nodeEls={};
+N.forEach(n=>{
+  const g=document.createElementNS(NS,"g"); g.setAttribute("class","node"); g.dataset.id=n.id; g.dataset.layer=n.layer;
+  const r=document.createElementNS(NS,"rect");
+  r.setAttribute("x",n.x);r.setAttribute("y",n.y);r.setAttribute("width",n.w);r.setAttribute("height",n.h);
+  r.setAttribute("rx",9); r.setAttribute("class","box");
+  const col=`var(${COLOR[n.layer]})`;
+  r.setAttribute("stroke",col);
+  r.setAttribute("fill",`color-mix(in oklab, ${col} 9%, var(--panel))`);
+  g.appendChild(r);
+  const t1=document.createElementNS(NS,"text"); t1.setAttribute("class","title");
+  t1.setAttribute("x",n.x+12); t1.setAttribute("y",n.y+ (n.meta?20:n.h/2+4)); t1.textContent=n.title; g.appendChild(t1);
+  if(n.meta){const t2=document.createElementNS(NS,"text");t2.setAttribute("class","meta");
+    t2.setAttribute("x",n.x+12);t2.setAttribute("y",n.y+36);t2.textContent=n.meta;g.appendChild(t2);}
+  svg.appendChild(g); nodeEls[n.id]=g;
+  g.addEventListener("click",e=>{e.stopPropagation();focusNode(n.id);});
+});
+
+function clearDim(){
+  Object.values(nodeEls).forEach(g=>g.classList.remove("dim"));
+  edgeEls.forEach(p=>p.classList.remove("dim"));
+  document.querySelectorAll(".lg").forEach(l=>l.setAttribute("aria-pressed","false"));
+}
+function focusNode(id){
+  clearDim();
+  const keep=new Set([id]);
+  edgeEls.forEach(p=>{ if(p.dataset.a===id||p.dataset.b===id){keep.add(p.dataset.a);keep.add(p.dataset.b);} });
+  Object.entries(nodeEls).forEach(([k,g])=>{ if(!keep.has(k)) g.classList.add("dim"); });
+  edgeEls.forEach(p=>{ if(!(p.dataset.a===id||p.dataset.b===id)) p.classList.add("dim"); });
+}
+function focusLayer(layer){
+  clearDim();
+  const keep=new Set(N.filter(n=>n.layer===layer).map(n=>n.id));
+  Object.entries(nodeEls).forEach(([k,g])=>{ if(!keep.has(k)) g.classList.add("dim"); });
+  edgeEls.forEach(p=>{ if(!(keep.has(p.dataset.a)||keep.has(p.dataset.b))) p.classList.add("dim"); });
+  document.querySelector(`.lg[data-layer="${layer}"]`)?.setAttribute("aria-pressed","true");
+}
+document.querySelectorAll(".lg").forEach(l=>l.addEventListener("click",()=>{
+  if(l.getAttribute("aria-pressed")==="true") clearDim(); else focusLayer(l.dataset.layer);
+}));
+document.getElementById("reset").addEventListener("click",clearDim);
+svg.addEventListener("click",clearDim);
+
+// ── cards ──
+const CARDS=[
+  {c:"public",t:"Public site",d:"Marketing + intake. Parents request a tutor; candidates apply; anyone checks status.",items:["find-tutor","become-tutor","application-status","how-it-works","fees-and-terms","about","privacy"]},
+  {c:"auth",t:"Auth",d:"Supabase email auth with SSR cookies. Login carries a next= redirect; signout is a route handler.",items:["login","forgot-password","reset-password","auth/signout"]},
+  {c:"role",t:"Role dashboards",d:"Three gated areas. Tutors stay in application-status/documents until an admin approves.",items:["/parent","/tutor","/admin","Shell · Nav · Figures"]},
+  {c:"api",t:"API & server actions",d:"Payment init + gateway callbacks as route handlers; form mutations as \"use server\" actions validated with Zod.",items:["payments/initiate","esewa/callback","khalti/callback","actions.ts","lib/email"]},
+  {c:"data",t:"Supabase backend",d:"One client per context (browser + SSR). RLS enforces every row; is_admin() reads profiles. Docs live in Storage.",items:["Auth","Postgres + RLS","Storage","is_admin()"]},
+  {c:"ext",t:"External providers",d:"Nepal payment rails and messaging. Secrets are server-only; HMAC signatures verified on callback.",items:["eSewa ePay v2","Khalti","SMTP email","WhatsApp"]},
+];
+const cardsEl=document.getElementById("cards");
+CARDS.forEach(c=>{
+  const el=document.createElement("div");el.className="card";
+  el.innerHTML=`<h3><span class="dot" style="background:var(${COLOR[c.c]})"></span>${c.t}</h3><p>${c.d}</p><ul>${c.items.map(i=>`<li>${i}</li>`).join("")}</ul>`;
+  cardsEl.appendChild(el);
+});
+
+// ── schema groups ──
+const SCHEMA=[
+  {h:"Identity",items:["profiles","user_role enum"]},
+  {h:"Tutor profile",items:["tutor_profiles","tutor_documents","tutor_qualifications","tutor_experiences","tutor_subjects","tutor_areas","tutor_availability"]},
+  {h:"Applications",items:["tutor_applications","application_status_history","admin_application_notes","tutor_applicants","applicant_documents","tutor_agreements","agreement_acceptances"]},
+  {h:"Matching",items:["requests","request_subjects","matches","case_notes","reviews"]},
+  {h:"Delivery",items:["tuitions","attendance","payments"]},
+  {h:"Lookups",items:["subjects","levels","areas"]},
+  {h:"Messaging",items:["notifications","email_notifications"]},
+];
+const schemaEl=document.getElementById("schema");
+SCHEMA.forEach(s=>{
+  const sec=document.createElement("section");
+  sec.innerHTML=`<h4>${s.h}</h4><ul>${s.items.map(i=>`<li>${i}</li>`).join("")}</ul>`;
+  schemaEl.appendChild(sec);
+});
+</script>
+
+</body></html>

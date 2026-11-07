@@ -1,4 +1,5 @@
 import type { createClient } from "@/lib/supabase/server";
+import { getAreaMap } from "@/lib/lookups";
 
 type Supabase = Awaited<ReturnType<typeof createClient>>;
 
@@ -52,7 +53,7 @@ export type Tuition = {
  * board, area, mode and budget.
  */
 export async function loadTutorWork(supabase: Supabase, uid: string) {
-  const [{ data: matchRows }, { data: tuitionRows }, { data: areaRows }] = await Promise.all([
+  const [{ data: matchRows }, { data: tuitionRows }, areaName] = await Promise.all([
     supabase
       .from("matches")
       .select("id, request_id, status, demo_date, proposed_fee, created_at")
@@ -62,7 +63,7 @@ export async function loadTutorWork(supabase: Supabase, uid: string) {
       .from("tuitions")
       .select("id, match_id, status, monthly_fee, start_date, created_at")
       .order("created_at", { ascending: false }),
-    supabase.from("areas").select("id, name"),
+    getAreaMap(),
   ]);
 
   const matches = (matchRows ?? []) as {
@@ -82,9 +83,6 @@ export async function loadTutorWork(supabase: Supabase, uid: string) {
         .in("id", requestIds)
     : { data: [] };
 
-  const areaName = new Map(
-    ((areaRows ?? []) as { id: number; name: string }[]).map((a) => [a.id, a.name])
-  );
   const requests = new Map<string, RequestInfo>();
   for (const r of (viewRows ?? []) as {
     id: string;
