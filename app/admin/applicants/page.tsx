@@ -1,6 +1,12 @@
 import { Badge } from "@/components/ui/Card";
 import { ButtonLink } from "@/components/ui/Button";
-import { TableCard, DataTable, type Column } from "@/components/ui/Table";
+import {
+  TableCard,
+  DataTable,
+  Pagination,
+  PAGE_SIZE,
+  type Column,
+} from "@/components/ui/Table";
 import { createClient } from "@/lib/supabase/server";
 import {
   APPLICATION_STATUS_LABEL,
@@ -29,23 +35,47 @@ function prettyDate(d: string | null) {
   });
 }
 
-export default async function ApplicantsPage() {
-  const supabase = await createClient();
-  const { data } = await supabase
-    .from("tutor_applicants")
-    .select(
-      "id, application_number, full_name, email, phone, education, experience_years, status, submitted_at"
-    )
-    .order("submitted_at", { ascending: false });
+export default async function ApplicantsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ page?: string }>;
+}) {
+  const { page: pageParam } = await searchParams;
+  const page = Math.max(1, Number(pageParam) || 1);
+  const fromRow = (page - 1) * PAGE_SIZE;
 
-  const rows = (data ?? []) as Row[];
-  const count = (s: ApplicationStatus) => rows.filter((r) => r.status === s).length;
+  const supabase = await createClient();
+
+  // Stat tiles use lightweight head-only counts (no rows transferred) so the
+  // totals stay accurate across the whole table while the list below paginates.
+  const headCount = (s: ApplicationStatus) =>
+    supabase
+      .from("tutor_applicants")
+      .select("id", { count: "exact", head: true })
+      .eq("status", s);
+
+  const [listRes, pendingRes, changesRes, approvedRes] = await Promise.all([
+    supabase
+      .from("tutor_applicants")
+      .select(
+        "id, application_number, full_name, email, phone, education, experience_years, status, submitted_at",
+        { count: "exact" }
+      )
+      .order("submitted_at", { ascending: false })
+      .range(fromRow, fromRow + PAGE_SIZE - 1),
+    headCount("pending_review"),
+    headCount("changes_requested"),
+    headCount("approved"),
+  ]);
+
+  const rows = (listRes.data ?? []) as Row[];
+  const total = listRes.count ?? 0;
 
   const stats: { label: string; value: number; tone: string }[] = [
-    { label: "Total", value: rows.length, tone: "text-foreground" },
-    { label: "Pending review", value: count("pending_review"), tone: "text-warning" },
-    { label: "Changes requested", value: count("changes_requested"), tone: "text-warning" },
-    { label: "Approved", value: count("approved"), tone: "text-success" },
+    { label: "Total", value: total, tone: "text-foreground" },
+    { label: "Pending review", value: pendingRes.count ?? 0, tone: "text-warning" },
+    { label: "Changes requested", value: changesRes.count ?? 0, tone: "text-warning" },
+    { label: "Approved", value: approvedRes.count ?? 0, tone: "text-success" },
   ];
 
   const columns: Column<Row>[] = [
@@ -117,12 +147,17 @@ export default async function ApplicantsPage() {
         ))}
       </div>
 
-      <TableCard title="Tutor applications" subtitle={`${rows.length} total`}>
+      <TableCard title="Tutor applications" subtitle={`${total} total`}>
         <DataTable
           columns={columns}
           rows={rows}
           rowKey={(r) => r.id}
           empty="No tutor applications yet."
+        />
+        <Pagination
+          page={page}
+          total={total}
+          hrefForPage={(p) => `/admin/applicants?page=${p}`}
         />
       </TableCard>
     </div>

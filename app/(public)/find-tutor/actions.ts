@@ -3,6 +3,7 @@
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { BOARDS, MODES, GENDER_PREF } from "@/lib/constants";
+import { limitByIp } from "@/lib/rate-limit";
 
 const schema = z.object({
   contact_name: z.string().min(2, "Please enter your name"),
@@ -47,6 +48,14 @@ export async function submitRequest(
   _prev: RequestState,
   formData: FormData
 ): Promise<RequestState> {
+  const rl = await limitByIp("find-tutor", 10, 10 * 60_000);
+  if (!rl.ok) {
+    return {
+      ok: false,
+      error: `Too many requests. Please wait ${rl.retryAfterSec}s and try again.`,
+    };
+  }
+
   const parsed = schema.safeParse({
     contact_name: formData.get("contact_name"),
     phone: formData.get("phone"),

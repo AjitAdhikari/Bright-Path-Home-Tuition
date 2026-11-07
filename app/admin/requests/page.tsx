@@ -1,6 +1,12 @@
 import Link from "next/link";
 import { StatusBadge } from "@/components/ui/Card";
-import { TableCard, DataTable, type Column } from "@/components/ui/Table";
+import {
+  TableCard,
+  DataTable,
+  Pagination,
+  PAGE_SIZE,
+  type Column,
+} from "@/components/ui/Table";
 import { createClient } from "@/lib/supabase/server";
 import {
   CASE_STATUS,
@@ -23,24 +29,29 @@ type CaseRow = {
 export default async function AdminRequests({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string }>;
+  searchParams: Promise<{ status?: string; page?: string }>;
 }) {
-  const { status: active } = await searchParams;
+  const { status: active, page: pageParam } = await searchParams;
+  const page = Math.max(1, Number(pageParam) || 1);
+  const fromRow = (page - 1) * PAGE_SIZE;
   const supabase = await createClient();
 
   let query = supabase
     .from("requests")
     .select(
-      "id, contact_name, child_grade, board, budget, status, created_at, area:areas(name)"
+      "id, contact_name, child_grade, board, budget, status, created_at, area:areas(name)",
+      { count: "exact" }
     )
-    .order("created_at", { ascending: false });
+    .order("created_at", { ascending: false })
+    .range(fromRow, fromRow + PAGE_SIZE - 1);
 
   if (active && CASE_STATUS.includes(active as CaseStatus)) {
     query = query.eq("status", active);
   }
 
-  const { data } = await query;
+  const { data, count } = await query;
   const rows = (data ?? []) as CaseRow[];
+  const total = count ?? 0;
 
   const columns: Column<CaseRow>[] = [
     {
@@ -139,7 +150,7 @@ export default async function AdminRequests({
 
       <TableCard
         title="Cases"
-        subtitle={`${rows.length} ${rows.length === 1 ? "case" : "cases"}${
+        subtitle={`${total} ${total === 1 ? "case" : "cases"}${
           active ? ` · ${CASE_STATUS_LABEL[active as CaseStatus]}` : ""
         }`}
       >
@@ -151,6 +162,13 @@ export default async function AdminRequests({
             active
               ? "No cases with this status yet."
               : "No cases yet. New parent requests will appear here."
+          }
+        />
+        <Pagination
+          page={page}
+          total={total}
+          hrefForPage={(p) =>
+            active ? `/admin/requests?status=${active}&page=${p}` : `/admin/requests?page=${p}`
           }
         />
       </TableCard>

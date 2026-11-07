@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { cn } from "@/lib/utils";
 
 /** A column definition for {@link DataTable}. */
@@ -42,6 +43,64 @@ export function TableCard({
         </div>
       )}
       <div className="overflow-x-auto">{children}</div>
+    </div>
+  );
+}
+
+/** Shared page size for admin listings. */
+export const PAGE_SIZE = 25;
+
+/**
+ * Server-rendered pagination footer (plain links, no client JS). `hrefForPage`
+ * builds the URL for a given 1-based page, so the caller keeps any existing
+ * query params (e.g. a status filter). Renders nothing when there's one page.
+ */
+export function Pagination({
+  page,
+  total,
+  pageSize = PAGE_SIZE,
+  hrefForPage,
+}: {
+  page: number;
+  total: number;
+  pageSize?: number;
+  hrefForPage: (page: number) => string;
+}) {
+  const pages = Math.max(1, Math.ceil(total / pageSize));
+  if (pages <= 1) return null;
+
+  const current = Math.min(Math.max(1, page), pages);
+  const from = (current - 1) * pageSize + 1;
+  const to = Math.min(current * pageSize, total);
+  const link =
+    "inline-flex min-h-9 items-center rounded-lg border border-border bg-card px-3 text-sm font-medium text-foreground transition-colors hover:border-primary/50";
+  const disabled =
+    "pointer-events-none inline-flex min-h-9 items-center rounded-lg border border-border bg-muted/40 px-3 text-sm font-medium text-muted-foreground opacity-60";
+
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border px-5 py-3 text-sm">
+      <p className="text-muted-foreground">
+        {from}–{to} of {total}
+      </p>
+      <div className="flex items-center gap-2">
+        {current > 1 ? (
+          <Link href={hrefForPage(current - 1)} className={link} rel="prev">
+            Previous
+          </Link>
+        ) : (
+          <span className={disabled}>Previous</span>
+        )}
+        <span className="px-1 text-muted-foreground">
+          Page {current} of {pages}
+        </span>
+        {current < pages ? (
+          <Link href={hrefForPage(current + 1)} className={link} rel="next">
+            Next
+          </Link>
+        ) : (
+          <span className={disabled}>Next</span>
+        )}
+      </div>
     </div>
   );
 }

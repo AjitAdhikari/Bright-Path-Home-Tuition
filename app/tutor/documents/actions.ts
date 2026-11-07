@@ -2,14 +2,10 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import { DOC_TYPE_MAP, MAX_DOC_BYTES } from "@/lib/constants";
+import { DOC_TYPE_MAP } from "@/lib/constants";
+import { safeStorageName, validateDocFile } from "@/lib/uploads";
 
 export type DocActionState = { ok: boolean; error?: string; message?: string };
-
-function extOf(name: string) {
-  const i = name.lastIndexOf(".");
-  return i >= 0 ? name.slice(i + 1).toLowerCase() : "";
-}
 
 /**
  * Upload one verification document. Validation runs on the SERVER (type,
@@ -29,20 +25,9 @@ export async function uploadDocument(
   if (!(file instanceof File) || file.size === 0) {
     return { ok: false, error: "Please choose a file to upload." };
   }
-  if (file.size > MAX_DOC_BYTES) {
-    return { ok: false, error: "Please keep files under 5 MB." };
-  }
 
-  const ext = extOf(file.name);
-  const typeOk = spec.mimes.includes(file.type) || spec.exts.includes(ext);
-  if (!spec.exts.includes(ext) || !typeOk) {
-    return {
-      ok: false,
-      error: `${spec.label} must be a ${spec.exts
-        .join(", ")
-        .toUpperCase()} file.`,
-    };
-  }
+  const fileErr = validateDocFile(docType, file);
+  if (fileErr) return { ok: false, error: fileErr };
 
   const supabase = await createClient();
   const {
@@ -72,7 +57,7 @@ export async function uploadDocument(
     }
   }
 
-  const safeName = file.name.replace(/[^a-zA-Z0-9.\-_]/g, "_");
+  const safeName = safeStorageName(file.name);
   const path = `${user.id}/${docType}-${Date.now()}-${safeName}`;
 
   const { error: upErr } = await supabase.storage
