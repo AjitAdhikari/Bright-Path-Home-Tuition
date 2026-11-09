@@ -125,7 +125,8 @@ export default async function CaseDetail({
                     request.budget != null && t.from_fee > request.budget;
                   const genderMismatch =
                     request.gender_pref !== "any" &&
-                    (t.gender ?? "").toLowerCase() !==
+                    (t.gender ?? "").trim() !== "" &&
+                    t.gender!.toLowerCase() !==
                       request.gender_pref.toLowerCase();
                   return (
                     <li
