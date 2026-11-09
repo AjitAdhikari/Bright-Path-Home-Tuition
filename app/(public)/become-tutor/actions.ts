@@ -6,10 +6,8 @@ import { sendEmail, applicationReceivedEmail } from "@/lib/email";
 import { DOC_TYPES } from "@/lib/constants";
 import { safeStorageName, validateDocFile } from "@/lib/uploads";
 import { limitByIp } from "@/lib/rate-limit";
+import { AGREEMENT_VERSION } from "@/lib/constants";
 
-// Trim every string the same way the client does before validating, so a form
-// the client accepted is never rejected by the server over stray whitespace
-// (which would otherwise bounce the user back a step).
 const trimmed = (msg: string, min = 1) =>
   z.preprocess(
     (v) => (typeof v === "string" ? v.trim() : v),
@@ -36,6 +34,13 @@ const schema = z.object({
   levels: z.array(z.string()).min(1, "Choose at least one level you teach"),
   areas: trimmed("Where can you travel?", 2),
   bio: trimmed("A few sentences helps parents trust you", 20),
+  // Agreement acceptance is mandatory — the checkbox submits "yes" only when
+  // checked. Anything else (absent/false) is rejected server-side, so an
+  // application can never be stored with agreement_accepted = false.
+  agreement_accepted: z.preprocess(
+    (v) => v === "yes" || v === "true" || v === "on" || v === true,
+    z.literal(true, { message: "You must accept the agreement to apply." })
+  ),
 });
 
 export type TutorState = {
@@ -74,6 +79,7 @@ export async function submitApplication(
     levels: formData.getAll("levels"),
     areas: formData.get("areas"),
     bio: formData.get("bio"),
+    agreement_accepted: formData.get("agreement_accepted"),
   });
 
   if (!parsed.success) {
@@ -118,6 +124,12 @@ export async function submitApplication(
     bio: d.bio,
     areas: d.areas,
     levels: d.levels.join(", "),
+    // Immutable agreement snapshot. The server pins the version and sets the
+    // authoritative acceptance timestamp — the client value is not trusted.
+    agreement_accepted: true,
+    agreement_accepted_at: new Date().toISOString(),
+    agreement_version: AGREEMENT_VERSION,
+    agreement_teacher_name: d.full_name,
   };
 
   // Look for an existing OPEN application for this email. A review already in

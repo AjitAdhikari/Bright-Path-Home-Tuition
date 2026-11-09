@@ -11,25 +11,42 @@ import {
   Search,
   Clock,
   Mail,
+  ShieldCheck,
+  FileCheck2,
 } from "lucide-react";
 import { submitApplication, type TutorState } from "./actions";
 import { Button, ButtonLink } from "@/components/ui/Button";
 import { Label, Input, Select, Textarea } from "@/components/ui/Field";
 import { Card } from "@/components/ui/Card";
-import { LEVELS, DOC_TYPES } from "@/lib/constants";
+import { LEVELS, DOC_TYPES, AGREEMENT_VERSION } from "@/lib/constants";
 import { cn } from "@/lib/utils";
+import {
+  AgreementDocument,
+  AGREEMENT_CHECKBOX_LABEL,
+  formatAgreementDate,
+} from "./Agreement";
 
 const initial: TutorState = { ok: false };
 
-const STEP_LABELS = ["About you", "Teaching profile", "Documents", "Verification"];
+const STEP_LABELS = [
+  "Personal information",
+  "Teaching profile",
+  "Documents",
+  "Agreement",
+  "Verification",
+];
+const TOTAL_STEPS = STEP_LABELS.length;
+const LAST_STEP = TOTAL_STEPS; // 5 — the Verification / submit step
+const AGREEMENT_STEP = 4;
 
-/** Which field names live on each step (drives validation + error routing). */
 const STEP_FIELDS: Record<number, string[]> = {
   1: ["full_name", "phone", "email"],
   2: ["education", "experience_years", "areas", "levels", "bio"],
   3: DOC_TYPES.filter((d) => d.requirement === "required").map((d) => d.type),
 };
 const INPUT_STEPS = [1, 2, 3];
+const AGREEMENT_ERROR =
+  "Please read and accept the agreement to continue.";
 
 /** Reverse lookup: field name → step it belongs to. */
 const FIELD_STEP: Record<string, number> = Object.fromEntries(
@@ -160,6 +177,12 @@ export function TutorForm() {
   const [step, setStep] = useState(1);
   const [errors, setErrors] = useState<Errors>({});
   const [completed, setCompleted] = useState<Set<number>>(new Set());
+  // Agreement (Step 4) state. `accepted` is the mandatory checkbox; `fullName`
+  // mirrors the Step 1 name so the agreement updates live; `agreementDate` is
+  // generated once and kept stable for the whole session.
+  const [accepted, setAccepted] = useState(false);
+  const [fullName, setFullName] = useState("");
+  const [agreementDate] = useState(() => formatAgreementDate(new Date()));
   const formRef = useRef<HTMLFormElement>(null);
 
   // Route server-side errors back to the step that actually owns the failing
@@ -259,8 +282,12 @@ export function TutorForm() {
   }
 
   /** Pure validity check for a step — no state changes, no focus. Used to keep
-   *  the "completed" markers honest without disturbing the UI. */
+   *  the "completed" markers honest without disturbing the UI. Step 4 is valid
+   *  only when the agreement checkbox is checked; Step 5 (verification) has no
+   *  blocking fields of its own. */
   function stepIsValid(n: number): boolean {
+    if (n === AGREEMENT_STEP) return accepted;
+    if (n === LAST_STEP) return true;
     return (STEP_FIELDS[n] ?? []).every((f) => !checkField(f));
   }
 
@@ -297,6 +324,16 @@ export function TutorForm() {
     let firstStep = 0;
     let firstField = "";
     for (const n of steps) {
+      if (n === AGREEMENT_STEP) {
+        if (!accepted) {
+          found.agreement = AGREEMENT_ERROR;
+          if (!firstStep) {
+            firstStep = n;
+            firstField = "agreement_accepted";
+          }
+        }
+        continue;
+      }
       for (const name of STEP_FIELDS[n] ?? []) {
         const err = checkField(name);
         if (err) {
@@ -310,14 +347,19 @@ export function TutorForm() {
     }
     setErrors((prev) => {
       const nextErrors = { ...prev };
-      for (const n of steps)
-        for (const f of STEP_FIELDS[n] ?? []) delete nextErrors[f];
+      for (const n of steps) {
+        if (n === AGREEMENT_STEP) delete nextErrors.agreement;
+        else for (const f of STEP_FIELDS[n] ?? []) delete nextErrors[f];
+      }
       return { ...nextErrors, ...found };
     });
     setCompleted((prev) => {
       const set = new Set(prev);
       for (const n of steps) {
-        const ok = (STEP_FIELDS[n] ?? []).every((f) => !found[f]);
+        const ok =
+          n === AGREEMENT_STEP
+            ? accepted
+            : (STEP_FIELDS[n] ?? []).every((f) => !found[f]);
         if (ok) set.add(n);
         else set.delete(n);
       }
@@ -330,7 +372,7 @@ export function TutorForm() {
     if (pending) return;
     const { firstField } = runValidation([step]);
     if (firstField) focusField(firstField);
-    else setStep((s) => Math.min(s + 1, 3));
+    else setStep((s) => Math.min(s + 1, LAST_STEP));
   }
 
   /**
@@ -344,7 +386,10 @@ export function TutorForm() {
       setStep(target);
       return;
     }
-    const range = INPUT_STEPS.filter((k) => k >= step && k < target);
+    // Validate every step between the current one and the target, including the
+    // agreement step, so the stepper can never bypass acceptance or validation.
+    const range: number[] = [];
+    for (let k = step; k < target; k++) range.push(k);
     const { firstStep, firstField } = runValidation(range);
     if (firstStep) {
       setStep(firstStep);
@@ -366,14 +411,15 @@ export function TutorForm() {
       e.preventDefault();
       return;
     }
-    if (step < 3) {
+    if (step < LAST_STEP) {
       e.preventDefault();
       goNext();
       return;
     }
-    // Final step: validate all input steps; block + navigate on the first
-    // invalid one. Only a fully valid form reaches the server action.
-    const { firstStep, firstField } = runValidation(INPUT_STEPS);
+    // Final step (Verification): validate every input step AND the agreement
+    // acceptance; block + navigate on the first invalid one. Only a fully valid,
+    // agreement-accepted form reaches the server action.
+    const { firstStep, firstField } = runValidation([...INPUT_STEPS, AGREEMENT_STEP]);
     if (firstStep) {
       e.preventDefault();
       setStep(firstStep);
@@ -387,6 +433,8 @@ export function TutorForm() {
     const target = e.target as HTMLInputElement;
     const name = target?.name;
     if (!name) return;
+    // Keep the agreement's displayed teacher name in sync with Step 1 live.
+    if (name === "full_name") setFullName(target.value);
     if (errors[name]) {
       setErrors((prev) => {
         const nextErrors = { ...prev };
@@ -400,11 +448,26 @@ export function TutorForm() {
     }
   }
 
+  /** Toggle agreement acceptance. Checking clears the error and marks Step 4
+   *  complete; unchecking immediately re-locks progress past Step 4. */
+  function toggleAccepted(next: boolean) {
+    setAccepted(next);
+    markCompleted(AGREEMENT_STEP, next);
+    if (next) {
+      setErrors((prev) => {
+        if (!prev.agreement) return prev;
+        const nextErrors = { ...prev };
+        delete nextErrors.agreement;
+        return nextErrors;
+      });
+    }
+  }
+
   /* ── Step 4: submitted → verification / tracking ─────────────── */
   if (state.ok) {
     return (
       <div className="space-y-6">
-        <Stepper step={4} completed={new Set([1, 2, 3])} />
+        <Stepper step={TOTAL_STEPS + 1} completed={new Set([1, 2, 3, 4, 5])} />
         <Card className="text-center">
           <div className="mx-auto grid h-14 w-14 place-items-center rounded-full bg-primary/15 text-primary">
             <PartyPopper className="h-7 w-7" aria-hidden />
@@ -605,6 +668,99 @@ export function TutorForm() {
           </Card>
         </div>
 
+        {/* Step 4 — Agreement & terms acceptance */}
+        <div className={cn(step !== 4 && "hidden")}>
+          <Card className="space-y-5">
+            <div className="flex items-center gap-2">
+              <ShieldCheck className="h-4 w-4 text-muted-foreground" aria-hidden />
+              <h3 className="text-sm font-bold uppercase tracking-wide text-muted-foreground">
+                Agreement &amp; terms acceptance
+              </h3>
+            </div>
+            <p className="-mt-2 text-sm text-muted-foreground">
+              Please read the full agreement below. Your name and the date are
+              filled in automatically from the details you entered. You must
+              accept the agreement to continue to the final step.
+            </p>
+
+            <div className="max-h-[32rem] overflow-y-auto rounded-xl border border-border bg-muted/30 p-1">
+              <AgreementDocument teacherName={fullName} date={agreementDate} />
+            </div>
+
+            {/* Mandatory acceptance */}
+            <label
+              className={cn(
+                "flex cursor-pointer items-start gap-3 rounded-xl border p-4 transition-colors",
+                accepted
+                  ? "border-primary bg-primary/5"
+                  : errors.agreement
+                  ? "border-destructive bg-destructive/5"
+                  : "border-input bg-card hover:border-primary/50"
+              )}
+            >
+              <input
+                type="checkbox"
+                name="agreement_accepted"
+                value="yes"
+                checked={accepted}
+                onChange={(e) => toggleAccepted(e.target.checked)}
+                aria-invalid={!!errors.agreement}
+                className="mt-0.5 h-5 w-5 shrink-0 rounded border-input text-primary accent-primary focus:ring-2 focus:ring-ring"
+              />
+              <span className="text-sm text-foreground">{AGREEMENT_CHECKBOX_LABEL}</span>
+            </label>
+            <Msg error={errors.agreement} />
+          </Card>
+        </div>
+
+        {/* Step 5 — Verification & submit */}
+        <div className={cn(step !== 5 && "hidden")}>
+          <Card className="space-y-5">
+            <div className="flex items-center gap-2">
+              <FileCheck2 className="h-4 w-4 text-muted-foreground" aria-hidden />
+              <h3 className="text-sm font-bold uppercase tracking-wide text-muted-foreground">
+                Verification &amp; submit
+              </h3>
+            </div>
+            <p className="-mt-2 text-sm text-muted-foreground">
+              Review your details below, then submit. Our team verifies every
+              application and its documents before approving a tutor — you&apos;ll
+              get an email once a decision is made.
+            </p>
+
+            <dl className="grid gap-3 rounded-xl border border-border bg-muted/30 p-4 text-sm sm:grid-cols-2">
+              <div>
+                <dt className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Name</dt>
+                <dd className="font-medium text-foreground">{fullName.trim() || "—"}</dd>
+              </div>
+              <div>
+                <dt className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Agreement</dt>
+                <dd className="flex items-center gap-1.5 font-medium text-foreground">
+                  {accepted ? (
+                    <>
+                      <Check className="h-4 w-4 text-primary" aria-hidden /> Accepted on {agreementDate}
+                    </>
+                  ) : (
+                    <span className="text-destructive">Not accepted yet</span>
+                  )}
+                </dd>
+              </div>
+            </dl>
+
+            {!accepted && (
+              <div className="flex items-center gap-2 rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+                <AlertCircle className="h-4 w-4 shrink-0" aria-hidden />
+                You must accept the agreement in the previous step before submitting.
+              </div>
+            )}
+          </Card>
+        </div>
+
+        {/* Hidden agreement payload — the server records WHAT was accepted. The
+            authoritative timestamp is set on the server, not trusted from here. */}
+        <input type="hidden" name="agreement_version" value={AGREEMENT_VERSION} />
+        <input type="hidden" name="agreement_date" value={agreementDate} />
+
         {/* Nav controls */}
         <div className="flex items-center justify-between gap-3">
           {step > 1 ? (
@@ -615,15 +771,20 @@ export function TutorForm() {
             <span />
           )}
 
-          {step < 3 ? (
+          {step < LAST_STEP ? (
             // Distinct `key` from the submit button so React never reuses this
-            // DOM node and flips its type to "submit" mid-click (which would
-            // auto-submit the form the moment Next advances to Step 3).
-            <Button key="next-btn" type="button" onClick={goNext} disabled={pending}>
+            // DOM node and flips its type to "submit" mid-click. On the agreement
+            // step the Next button stays disabled until the checkbox is checked.
+            <Button
+              key="next-btn"
+              type="button"
+              onClick={goNext}
+              disabled={pending || (step === AGREEMENT_STEP && !accepted)}
+            >
               Next <ArrowRight className="h-4 w-4" aria-hidden />
             </Button>
           ) : (
-            <Button key="submit-btn" type="submit" size="lg" disabled={pending}>
+            <Button key="submit-btn" type="submit" size="lg" disabled={pending || !accepted}>
               {pending ? "Submitting…" : "Submit application"}
             </Button>
           )}

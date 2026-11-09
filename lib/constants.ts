@@ -205,6 +205,8 @@ export const GENDER_PREF = ["Any", "Male", "Female"] as const;
 
 export const COMMISSION_RATE = 0.5; // 50% of the first month
 
+export const AGREEMENT_VERSION = "bpht-teacher-v1";
+
 /**
  * Manual QR payment details. Parents scan the QR (Fonepay/eSewa/bank),
  * pay the first month, then send us the screenshot on WhatsApp — there is

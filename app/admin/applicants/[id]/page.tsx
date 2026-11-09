@@ -10,6 +10,7 @@ import {
   Mail,
   Phone,
   GraduationCap,
+  ShieldCheck,
 } from "lucide-react";
 import { Card, Badge } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
@@ -40,6 +41,9 @@ type Applicant = {
   rejection_reason: string | null;
   admin_feedback: string | null;
   submitted_at: string | null;
+  agreement_accepted: boolean | null;
+  agreement_accepted_at: string | null;
+  agreement_version: string | null;
 };
 
 type DocRow = {
@@ -149,6 +153,13 @@ export default async function ApplicantDetail({
             </span>
           )}
           <span>Submitted {prettyDate(a.submitted_at)}</span>
+          {a.agreement_accepted && (
+            <span className="inline-flex items-center gap-1.5">
+              <ShieldCheck className="h-4 w-4" aria-hidden /> Agreement accepted
+              {a.agreement_accepted_at ? ` ${prettyDate(a.agreement_accepted_at)}` : ""}
+              {a.agreement_version ? ` (${a.agreement_version})` : ""}
+            </span>
+          )}
         </div>
       </Card>
 
