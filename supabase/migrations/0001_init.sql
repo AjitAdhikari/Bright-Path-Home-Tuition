@@ -810,6 +810,46 @@ language sql stable security definer set search_path = public as $$
 $$;
 grant execute on function match_tutors(uuid) to anon, authenticated;
 
+-- Admin shortlist matcher: broader than the parent-facing match_tutors. It
+-- filters on the three criteria an admin cares about when hand-picking —
+-- AREA, SUBJECT and CLASS/level — but does NOT drop a tutor over budget or
+-- gender preference. Those are returned (from_fee, gender) so the admin can
+-- weigh them while ticking, rather than silently excluding good candidates.
+create or replace function match_tutors_admin(p_request uuid)
+returns table (
+  user_id uuid, full_name text, bio text, education text, experience_years int,
+  gender text, photo_path text, teaches_online boolean, rating_avg numeric,
+  matched_subjects bigint, from_fee numeric, subjects text[]
+)
+language sql stable security definer set search_path = public as $$
+  with req as (select * from requests where id = p_request),
+  lvl as (select l.id from levels l, req where l.name = req.child_grade)
+  select
+    tp.user_id, p.full_name, tp.bio, tp.education, tp.experience_years,
+    tp.gender, tp.photo_path, tp.teaches_online, tp.rating_avg,
+    count(distinct ts.subject_id)              as matched_subjects,
+    min(ts.monthly_fee)                        as from_fee,
+    array_agg(distinct s.name order by s.name) as subjects
+  from req
+  join tutor_profiles tp on tp.verification_status = 'approved'
+  join profiles p on p.id = tp.user_id
+  join tutor_subjects ts
+    on ts.tutor_id = tp.user_id
+   and ts.subject_id in (select subject_id from request_subjects where request_id = p_request)
+   and (not exists (select 1 from lvl) or ts.level_id = (select id from lvl))
+  join subjects s on s.id = ts.subject_id
+  where (case
+           when req.mode = 'online' then tp.teaches_online
+           when req.area_id is null then true
+           else exists (select 1 from tutor_areas ta where ta.tutor_id = tp.user_id and ta.area_id = req.area_id)
+         end)
+  group by tp.user_id, p.full_name, tp.bio, tp.education, tp.experience_years,
+           tp.gender, tp.photo_path, tp.teaches_online, tp.rating_avg
+  order by matched_subjects desc, tp.rating_avg desc nulls last, from_fee asc
+  limit 50;
+$$;
+grant execute on function match_tutors_admin(uuid) to authenticated;
+
 -- Save the request (+ subjects, note, area) and return the matches in one call.
 create or replace function submit_tuition_request(
   p_contact_name text, p_phone text, p_child_grade text, p_board text,

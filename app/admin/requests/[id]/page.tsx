@@ -49,7 +49,7 @@ export default async function CaseDetail({
   if (!request) notFound();
 
   const [{ data: matchData }, { data: noteData }] = await Promise.all([
-    supabase.rpc("match_tutors" as never, { p_request: id } as never),
+    supabase.rpc("match_tutors_admin" as never, { p_request: id } as never),
     supabase
       .from("case_notes")
       .select("id, note, created_at")
@@ -120,32 +120,48 @@ export default async function CaseDetail({
             <form action={shareTutors} className="mt-4">
               <input type="hidden" name="request_id" value={id} />
               <ul className="space-y-3">
-                {matches.map((t) => (
-                  <li
-                    key={t.user_id}
-                    className="flex items-center justify-between rounded-xl border border-border p-3"
-                  >
-                    <label className="flex items-center gap-3">
-                      <input
-                        type="checkbox"
-                        name="tutor_ids"
-                        value={t.user_id}
-                        className="h-4 w-4 accent-[var(--primary)]"
-                      />
-                      <span>
-                        <span className="font-semibold text-foreground">
-                          {t.full_name}
+                {matches.map((t) => {
+                  const overBudget =
+                    request.budget != null && t.from_fee > request.budget;
+                  const genderMismatch =
+                    request.gender_pref !== "any" &&
+                    (t.gender ?? "").toLowerCase() !==
+                      request.gender_pref.toLowerCase();
+                  return (
+                    <li
+                      key={t.user_id}
+                      className="flex items-center justify-between gap-3 rounded-xl border border-border p-3"
+                    >
+                      <label className="flex items-center gap-3">
+                        <input
+                          type="checkbox"
+                          name="tutor_ids"
+                          value={t.user_id}
+                          className="h-4 w-4 accent-[var(--primary)]"
+                        />
+                        <span>
+                          <span className="font-semibold text-foreground">
+                            {t.full_name}
+                          </span>
+                          <span className="block text-xs text-muted-foreground">
+                            {t.subjects.join(", ")} · {t.experience_years} yrs ·{" "}
+                            {t.rating_avg > 0 ? `${t.rating_avg}★ · ` : ""}
+                            from {npr(t.from_fee)}
+                          </span>
                         </span>
-                        <span className="block text-xs text-muted-foreground">
-                          {t.subjects.join(", ")} · {t.experience_years} yrs ·{" "}
-                          {t.rating_avg > 0 ? `${t.rating_avg}★ · ` : ""}
-                          from {npr(t.from_fee)}
-                        </span>
+                      </label>
+                      <span className="flex shrink-0 flex-wrap justify-end gap-1.5">
+                        {overBudget && (
+                          <Badge tone="warning">Over budget</Badge>
+                        )}
+                        {genderMismatch && (
+                          <Badge tone="warning">Gender differs</Badge>
+                        )}
+                        <Badge tone="success">Verified</Badge>
                       </span>
-                    </label>
-                    <Badge tone="success">Verified</Badge>
-                  </li>
-                ))}
+                    </li>
+                  );
+                })}
               </ul>
               <Button type="submit" className="mt-4">
                 Share selected with parent
