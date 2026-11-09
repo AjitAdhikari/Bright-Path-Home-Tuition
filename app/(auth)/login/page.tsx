@@ -8,10 +8,16 @@ export const metadata: Metadata = { title: "Log in" };
 export default function LoginPage() {
   return (
     <div>
-      <h1 className="text-2xl font-bold text-ink-900">Welcome back</h1>
-      <p className="mt-1 text-sm text-ink-500">
-        Log in to your tutor or admin dashboard.
+      <span className="inline-flex items-center rounded-full border border-border bg-card px-3 py-1 text-xs font-semibold text-muted-foreground">
+        Tutor &amp; admin access
+      </span>
+      <h1 className="font-heading mt-5 text-3xl font-semibold tracking-tight text-foreground">
+        Welcome back
+      </h1>
+      <p className="mt-2 text-[0.95rem] text-muted-foreground">
+        Log in to reach your dashboard and pick up where you left off.
       </p>
+
       <div className="mt-8">
         <Suspense
           fallback={<div className="h-64 animate-pulse rounded-xl bg-muted" />}
@@ -19,9 +25,13 @@ export default function LoginPage() {
           <LoginForm />
         </Suspense>
       </div>
-      <p className="mt-6 text-center text-sm text-ink-500">
+
+      <p className="mt-8 border-t border-border pt-6 text-center text-sm text-muted-foreground">
         New tutor?{" "}
-        <Link href="/become-tutor" className="font-semibold text-brand-700 hover:underline">
+        <Link
+          href="/become-tutor"
+          className="font-semibold text-primary hover:underline"
+        >
           Create an account
         </Link>
       </p>

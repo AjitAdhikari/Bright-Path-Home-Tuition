@@ -95,7 +95,16 @@ export function LoginForm() {
         {loading ? "Signing in…" : "Log in"}
       </Button>
       <p className="text-center text-xs text-muted-foreground">
-        Trouble signing in? Message us on WhatsApp and we&apos;ll help.
+        Trouble signing in? Message us on{" "}
+        <a
+          href="https://wa.me/9779704121935"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="font-semibold text-primary hover:underline"
+        >
+          WhatsApp
+        </a>{" "}
+        and we&apos;ll help.
       </p>
     </form>
   );
